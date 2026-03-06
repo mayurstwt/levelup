@@ -3,8 +3,8 @@
 A niche freelance marketplace connecting **buyers** (gamers wanting progress/coaching) with **sellers** (skilled gamers offering coaching, duo-queue play, and strategy sessions).
 
 ## 🚀 Tech Stack
-- **Frontend**: React 18, Vite, Tailwind CSS, DaisyUI, Redux Toolkit, Socket.io-client
-- **Backend**: Node.js, Express, MongoDB (Mongoose), Socket.io, JWT
+- **Frontend**: React 18, Vite, Tailwind CSS, DaisyUI, Redux Toolkit, Socket.io-client, Chart.js, react-hot-toast
+- **Backend**: Node.js, Express, MongoDB (Mongoose), Socket.io, JWT, Multer
 - **Payments**: Polar (Subscriptions & Mock checkouts)
 
 ---
@@ -171,6 +171,7 @@ The React application handling User Experience, powered by Vite, Tailwind CSS, a
   - `theme.js`: Centralized constants for platform theme colors.
   - **`components/`**: Reusable modular UI pieces used across multiple pages.
     - `Navbar.jsx`: The top navigation bar handling mobile responsiveness, user identity display, dynamic linking by role, and the Socket-powered notification dropdown.
+    - `ConfirmModal.jsx`: Reusable global "Are you sure?" modal guarding critical actions like logout, bidding, and ending jobs.
     - `EmptyState.jsx` / `Skeleton.jsx`: UX placeholders for loading states and empty data views.
   - **`features/`**: Redux logic broken into specific domains (Auth, Jobs, Notifications) containing state reducers and Thunks (asynchronous API calls).
   - **`hooks/`**: Custom React Hooks.
@@ -180,14 +181,15 @@ The React application handling User Experience, powered by Vite, Tailwind CSS, a
     - `Register.jsx` / `Login.jsx`: Account creation and authentication flows.
     - `ForgotPassword.jsx` / `ResetPassword.jsx` / `ChangePassword.jsx`: Account recovery and security forms.
     - `Dashboard.jsx`: Role-specific central hub summarizing activities, showing buyer's posted jobs or seller's assigned tasks.
-    - `AdminDashboard.jsx`: A master control panel allowing admins to view system analytics, ban malicious actors, toggle KYC, and arbitrate job disputes.
-    - `JobListing.jsx` / `JobDetails.jsx`: The public search feed of jobs, and the specific detailed view of one job (which houses the localized inline job-edit fields, bid placing UI, and action buttons).
-    - `JobPost.jsx`: Form for generating a new job.
-    - `SellerOnboarding.jsx`: Secondary registration step exclusively for sellers to establish hourly rates and list their game expertise.
+    - `AuthCallback.jsx`: Universal OAuth receiver intercepting standardized JWT tokens correctly from providers like Discord.
+    - `AdminDashboard.jsx`: A master control panel built with Chart.js generating revenue trajectory graphs and financial ledgers, allowing admins to arbitrate job disputes.
+    - `JobListing.jsx` / `JobDetails.jsx`: The public search feed of jobs, and the specific detailed view of one job (which houses the localized inline job-edit fields, the automated Visual Escrow Progress Tracker, bid placing UI, and action buttons).
+    - `JobPost.jsx`: Form for generating a new job with specific taxonomies (e.g. `serviceType`).
+    - `SellerOnboarding.jsx`: Secondary registration step exclusively for sellers featuring mocked API synchronization links and gamified profile Badges.
     - `SellerProfile.jsx`: Public portfolio of a seller displaying their reviews and performance metrics.
     - `MyBids.jsx`: A centralized view for sellers to monitor all their open, accepted, and rejected bids in one place, allowing voluntary withdrawals.
     - `Checkout.jsx`: The mock redirect page simulating an escrow deposit lock-in after a buyer picks a bid.
-    - `Chat.jsx`: The persistent real-time conversation window active when a buyer and seller are matched.
+    - `Chat.jsx`: The persistent real-time conversation window enriched with image upload features via Multer and active read receipts for visibility.
     - `Pricing.jsx`: Informational grid comparing subscription tiers, wired up to redirect to Polar Checkouts.
     - `TermsOfService.jsx`: Legal boilerplate.
   - **`utils/`**: Shared static functions.
@@ -213,6 +215,8 @@ The React application handling User Experience, powered by Vite, Tailwind CSS, a
    - Pricing tiers enforce hard caps on actions (e.g., Free buyers can only post 3 jobs). When upgrading via the Polar checkout, the platform receives a highly secured, signature-verified webhook. An idempotency check (using the `paymentId`) confirms that the backend doesn't double-charge or upgrade someone twice if Polar retries the network request.
 8. **Automated Maintenance Jobs**
    - The server maintains itself via Node-Cron. Jobs that remain open with zero activity for long periods are automatically rotated to an `expired` status to ensure the marketplace feed remains relevant and clean.
+9. **Advanced UX & Communication Engine**
+   - Interfacing with third-parties is supported seamlessly through `AuthCallback.jsx` capturing tokens securely (e.g., Discord). Live chats support read receipts and native image uploads powered by `multer`. Real-time socket events now fire global `react-hot-toast` popups, guaranteeing no missed alerts regardless of what page the user is on. Overall dashboard analytics integrate heavily with `chart.js` to build transparent Ledger systems bridging Buyers with platform administrators.
 
 ---
 
