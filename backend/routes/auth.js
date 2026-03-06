@@ -12,6 +12,8 @@ router.post('/register', [
     body('role', 'Role must be buyer or seller').isIn(['buyer', 'seller'])
 ], validate, authController.register);
 
+router.get('/verify-email/:token', authController.verifyEmail);
+
 router.post('/login', [
     body('email', 'Please include a valid email').isEmail().normalizeEmail(),
     body('password', 'Password is required').exists()

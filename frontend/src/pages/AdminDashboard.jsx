@@ -1,6 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -17,8 +40,9 @@ const StatCard = ({ icon, label, value, color }) => (
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [jobs, setJobs] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('overview');
 
   const token = localStorage.getItem('token');
   const authHeader = { headers: { Authorization: `Bearer ${token}` } };
@@ -26,12 +50,14 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [usersRes, jobsRes] = await Promise.all([
+        const [usersRes, jobsRes, txRes] = await Promise.all([
           axios.get(`${backendUrl}/admin/users`, authHeader),
           axios.get(`${backendUrl}/jobs?limit=100`, authHeader),
+          axios.get(`${backendUrl}/polar/transactions`, authHeader).catch(() => ({ data: [] }))
         ]);
         setUsers(usersRes.data);
         setJobs(jobsRes.data.jobs || []);
+        setTransactions(txRes.data || []);
       } catch (err) {
         console.error('Admin fetch error:', err.message);
       } finally {
@@ -83,6 +109,46 @@ const AdminDashboard = () => {
       disputed: 'bg-red-100 text-red-700',
     };
     return map[status] || 'bg-gray-100 text-gray-600';
+  };
+
+  const revenueData = {
+    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+    datasets: [
+      {
+        fill: true,
+        label: 'Platform Revenue (◈)',
+        data: [1200, 1900, 3000, 5000, 4200, 6000, 7500],
+        borderColor: 'rgb(53, 162, 235)',
+        backgroundColor: 'rgba(53, 162, 235, 0.2)',
+        tension: 0.4
+      },
+    ],
+  };
+
+  const userGrowthData = {
+    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+    datasets: [
+      {
+        fill: true,
+        label: 'Active Users',
+        data: [50, 120, 300, 450, 600, 800, 1200],
+        borderColor: 'rgb(147, 51, 234)',
+        backgroundColor: 'rgba(147, 51, 234, 0.2)',
+        tension: 0.4
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top', labels: { font: { family: 'inherit', weight: 'bold' } } },
+    },
+    scales: {
+      y: { beginAtZero: true, grid: { borderDash: [2, 4] } },
+      x: { grid: { display: false } }
+    }
   };
 
   if (isLoading) {
@@ -147,17 +213,40 @@ const AdminDashboard = () => {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-0 mb-6">
-          {[['users', '👥 Users'], ['jobs', '📋 Jobs']].map(([key, label]) => (
+        <div className="flex gap-0 mb-6 border-b-2 border-gray-200">
+          {[
+              ['overview', '📊 Overview'], 
+              ['users', '👥 Users'], 
+              ['jobs', '📋 Jobs'],
+              ['ledger', '💰 Financial Ledger']
+          ].map(([key, label]) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
-              className={`px-5 py-2 text-sm font-black border-2 first:rounded-l last:rounded-r transition-colors ${activeTab === key ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-900'}`}
+              className={`px-5 py-3 text-sm font-black transition-colors border-b-2 -mb-[2px] ${activeTab === key ? 'text-blue-600 border-blue-600' : 'text-gray-500 border-transparent hover:text-gray-900 hover:border-gray-300'}`}
             >
               {label}
             </button>
           ))}
         </div>
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white border-2 border-gray-200 rounded p-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)]">
+              <h2 className="font-black text-gray-900 text-sm uppercase tracking-wider mb-4">Revenue Growth</h2>
+              <div className="h-64">
+                <Line options={chartOptions} data={revenueData} />
+              </div>
+            </div>
+            <div className="bg-white border-2 border-gray-200 rounded p-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)]">
+              <h2 className="font-black text-gray-900 text-sm uppercase tracking-wider mb-4">User Acquisition</h2>
+              <div className="h-64">
+                <Line options={chartOptions} data={userGrowthData} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Users Table */}
         {activeTab === 'users' && (
@@ -239,6 +328,52 @@ const AdminDashboard = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Financial Ledger */}
+        {activeTab === 'ledger' && (
+          <div className="bg-white border-2 border-gray-200 rounded overflow-hidden">
+            <div className="bg-gray-50 px-5 py-4 border-b-2 border-gray-200 flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-gray-900 uppercase">Platform Transactions</h3>
+                <p className="text-xs text-gray-500">History of all diamond purchases and escrow releases.</p>
+              </div>
+              <button className="bg-blue-600 hover:bg-blue-700 text-white font-black text-xs px-4 py-2 rounded uppercase tracking-wider transition-colors">
+                Export CSV
+              </button>
+            </div>
+            {transactions.length > 0 ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b-2 border-gray-200">
+                    {['Tx ID', 'Type', 'User', 'Amount', 'Date'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map(t => (
+                    <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{t.id.substring(0, 8)}...</td>
+                      <td className="px-4 py-3">
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] uppercase font-black px-2 py-0.5 rounded">
+                            {t.type}
+                          </span>
+                      </td>
+                      <td className="px-4 py-3 font-bold text-gray-900">{t.customer_email || 'System'}</td>
+                      <td className="px-4 py-3 font-black text-blue-600">+{t.amount / 100} USD</td>
+                      <td className="px-4 py-3 text-gray-400 text-xs">{new Date(t.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+                <div className="p-10 text-center">
+                    <p className="text-4xl mb-3">💸</p>
+                    <p className="font-bold text-gray-800">No transactions recorded yet.</p>
+                </div>
+            )}
           </div>
         )}
       </div>

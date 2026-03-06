@@ -10,6 +10,7 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { io } from 'socket.io-client';
+import toast from 'react-hot-toast';
 import { addNotification, fetchNotifications } from '../features/notifications/notificationSlice';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
@@ -54,9 +55,22 @@ const useSocket = () => {
             console.log('[Socket] Reconnected & re-registered:', user.id);
         });
 
-        // Real-time notification → dispatch to Redux
+        // Real-time notification → dispatch to Redux and show toast
         socket.on('notification', (payload) => {
             dispatch(addNotification(payload));
+            if (payload?.message) {
+                toast(payload.message, {
+                    icon: '🔔',
+                    duration: 4000,
+                    style: {
+                        borderRadius: '6px',
+                        background: '#333',
+                        color: '#fff',
+                        fontWeight: 'bold',
+                        fontSize: '13px'
+                    },
+                });
+            }
         });
 
         // Keep connection alive

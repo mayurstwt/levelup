@@ -93,6 +93,49 @@ app.use('/api/polar', require('./routes/polar'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/chats', require('./routes/chats'));
 
+// Simple local upload route for media
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { protect } = require('./middleware/authMiddleware');
+
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+}
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only images are allowed'));
+        }
+    }
+});
+
+// Serve static uploads
+app.use('/uploads', express.static(uploadDir));
+
+app.post('/api/upload', protect, upload.single('media'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+    }
+    const fileUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/uploads/${req.file.filename}`;
+    res.json({ fileUrl });
+});
+
 // Start cron jobs
 require('./jobs/expireJobs');
 require('./jobs/syncSubscriptions')();
@@ -137,7 +180,7 @@ io.on('connection', (socket) => {
     // Send and save message
     socket.on('sendMessage', async (data) => {
         try {
-            const { jobId, senderId, text } = data;
+            const { jobId, senderId, text, mediaUrl } = data;
             const Job = require('./models/Job');
 
             // Hard check: Ensure sender is either buyer or seller of this job
@@ -152,7 +195,14 @@ io.on('connection', (socket) => {
                 chat = new Chat({ jobId, messages: [] });
             }
 
-            const newMessage = { senderId, text, timestamp: Date.now() };
+            const newMessage = {
+                senderId,
+                text: text || '',
+                mediaUrl: mediaUrl || null,
+                readBy: [senderId], // Sender has read it
+                timestamp: Date.now()
+            };
+
             chat.messages.push(newMessage);
             await chat.save();
 
@@ -160,6 +210,29 @@ io.on('connection', (socket) => {
             io.to(jobId).emit('newMessage', newMessage);
         } catch (err) {
             console.error('Socket error saving message:', err.message);
+        }
+    });
+
+    // Mark messages as read
+    socket.on('markAsRead', async ({ jobId, userId }) => {
+        try {
+            let chat = await Chat.findOne({ jobId });
+            if (chat) {
+                let updated = false;
+                chat.messages.forEach(msg => {
+                    if (msg.senderId.toString() !== userId && !msg.readBy.includes(userId)) {
+                        msg.readBy.push(userId);
+                        updated = true;
+                    }
+                });
+
+                if (updated) {
+                    await chat.save();
+                    io.to(jobId).emit('messagesRead', { jobId, userId });
+                }
+            }
+        } catch (err) {
+            console.error('Socket error marking read:', err.message);
         }
     });
 

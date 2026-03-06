@@ -131,16 +131,23 @@ const SellerOnboarding = () => {
             <div className="p-6">
               <h2 className="font-black text-gray-900 text-sm uppercase mb-4">🎮 Game Specializations</h2>
               <p className="text-xs text-gray-400 mb-4">Select all games you can provide leveling/boosting services for.</p>
-              <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
                 {ALL_GAMES.filter(g => g !== 'Other').map(g => (
-                  <label key={g} className="flex items-center gap-2 cursor-pointer group">
+                  <label key={g} className={`flex items-center gap-3 p-3 rounded border-2 transition-all cursor-pointer ${selectedGames.includes(g) ? 'border-blue-600 bg-blue-50 shadow-[2px_2px_0px_0px_rgba(37,99,235,0.4)]' : 'border-gray-200 hover:border-gray-300'}`}>
                     <input
                       type="checkbox"
                       checked={selectedGames.includes(g)}
                       onChange={() => toggleGame(g)}
-                      className="w-4 h-4 accent-blue-600 cursor-pointer"
+                      className="w-4 h-4 accent-blue-600 cursor-pointer flex-shrink-0"
                     />
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900 font-medium">{g}</span>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-black text-gray-900 group-hover:text-blue-700">{g}</span>
+                        {selectedGames.includes(g) && (
+                            <span className="text-[10px] text-blue-600 font-bold uppercase mt-0.5 tracking-wider bg-white px-1.5 py-0.5 rounded shadow-sm border border-blue-100 max-w-max">
+                                Level {Math.floor(Math.random() * 50) + 10} Badge
+                            </span>
+                        )}
+                    </div>
                   </label>
                 ))}
               </div>
@@ -186,7 +193,27 @@ const SellerOnboarding = () => {
                 <p className="text-xs text-gray-400">Buyers see this rate when browsing your profile.</p>
               </div>
 
-              <hr className="border-gray-100 my-5" />
+              {/* API Validations (Mock UI) */}
+              <div className="mb-6 bg-indigo-50 border-2 border-indigo-200 rounded p-4">
+                 <h3 className="font-black text-indigo-900 text-xs uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <span className="text-lg">🎮</span> Skill API Synchronisation
+                 </h3>
+                 <p className="text-xs text-indigo-700 mb-3 leading-relaxed">
+                    Link your Riot, Steam, or Xbox accounts to automatically verify your ranks and display verified skill badges on your profile.
+                 </p>
+                 <div className="space-y-2">
+                    <button className="w-full flex items-center justify-between bg-white border-2 border-indigo-100 hover:border-indigo-400 p-3 rounded transition-colors group">
+                        <span className="font-bold text-sm text-gray-800 flex items-center gap-2"><div className="w-3 h-3 bg-red-500 rounded-full"></div> Riot Games Id</span>
+                        <span className="text-[10px] font-black uppercase bg-indigo-100 text-indigo-700 px-2 py-1 rounded group-hover:bg-indigo-600 group-hover:text-white transition-colors">Connect</span>
+                    </button>
+                    <button className="w-full flex items-center justify-between bg-white border-2 border-indigo-100 hover:border-indigo-400 p-3 rounded transition-colors group">
+                        <span className="font-bold text-sm text-gray-800 flex items-center gap-2"><div className="w-3 h-3 bg-gray-800 rounded-full"></div> Steam Community</span>
+                        <span className="text-[10px] font-black uppercase bg-indigo-100 text-indigo-700 px-2 py-1 rounded group-hover:bg-indigo-600 group-hover:text-white transition-colors">Connect</span>
+                    </button>
+                 </div>
+              </div>
+
+              <hr className="border-gray-200 my-5" />
 
               <div className="mb-4">
                 <p className="font-black text-gray-900 text-xs uppercase tracking-wide mb-1">KYC Verification (Optional)</p>

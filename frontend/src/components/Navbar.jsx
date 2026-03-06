@@ -274,6 +274,15 @@ const Navbar = () => {
 
       {/* Overlay to close notif dropdown */}
       {notifOpen && <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />}
+
+      <ConfirmModal 
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={confirmLogout}
+        title="Sign Out"
+        message="Are you sure you want to log out of your account?"
+        confirmText="Logout"
+      />
     </nav>
   );
 };

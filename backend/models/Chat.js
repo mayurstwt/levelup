@@ -5,7 +5,9 @@ const chatSchema = new mongoose.Schema({
     participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     messages: [{
         senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        text: { type: String, required: true },
+        text: { type: String, default: '' },
+        mediaUrl: { type: String, default: null },
+        readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         timestamp: { type: Date, default: Date.now }
     }]
 }, { timestamps: true });

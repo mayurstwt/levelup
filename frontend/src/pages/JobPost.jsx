@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { createJob } from '../features/jobs/jobSlice';
 import { useNavigate, Link } from 'react-router-dom';
+import ConfirmModal from '../components/ConfirmModal';
 
 import { GAMES_LIST, GAME_COLORS } from '../utils/ui-helpers';
 
@@ -28,6 +29,7 @@ const PLATFORM_FEE_RATE = 0.10;
 const JobPost = () => {
   const [step, setStep] = useState(1);
   const [selectedGame, setSelectedGame] = useState('');
+  const [serviceType, setServiceType] = useState('');
   const [currentLevel, setCurrentLevel] = useState('');
   const [targetLevel, setTargetLevel] = useState('');
   const [conditions, setConditions] = useState([]);
@@ -36,6 +38,7 @@ const JobPost = () => {
   const [deadline, setDeadline] = useState('1Week');
   const [mediaFiles, setMediaFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const fileInputRef = useRef(null);
 
   const dispatch = useDispatch();
@@ -67,17 +70,22 @@ const JobPost = () => {
     setMediaFiles([...mediaFiles, ...Array.from(e.dataTransfer.files)]);
   };
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
+  const onSubmit = async () => {
     const gameTitle = selectedGame || 'Other';
     const result = await dispatch(createJob({
       title: `${gameTitle} – ${targetLevel ? `Lvl ${currentLevel} → ${targetLevel}` : 'Boost Request'}`,
       description,
       game: gameTitle,
+      serviceType,
       budget: Number(budget),
       timeline: deadline,
     }));
     if (!result.error) navigate('/dashboard');
+  };
+
+  const handlePublishClick = (e) => {
+    e.preventDefault();
+    setShowConfirmModal(true);
   };
 
   const steps = [
@@ -172,6 +180,26 @@ const JobPost = () => {
                   <span className="text-gray-400">🎯</span> 02. MISSION TARGETS
                 </h2>
                 <div className="border-2 border-gray-200 rounded p-5 bg-white">
+                  
+                  <div className="mb-6">
+                    <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-2">Service Type</label>
+                    <select
+                      value={serviceType}
+                      onChange={(e) => setServiceType(e.target.value)}
+                      className="w-full border-2 border-gray-200 focus:border-blue-500 rounded px-3 py-2 text-sm outline-none transition-colors font-bold appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5.293%207.293a1%201%200%20011.414%200L10%2010.586l3.293-3.293a1%201%200%20111.414%201.414l-4%204a1%201%200%2001-1.414%200l-4-4a1%201%200%20010-1.414z%22%20fill%3D%22%239CA3AF%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-white cursor-pointer"
+                    >
+                      <option value="">Select a service category...</option>
+                      <option value="Rank Boosting">Rank Boosting</option>
+                      <option value="Power Leveling">Power Leveling</option>
+                      <option value="Coaching">Coaching</option>
+                      <option value="Account Farming">Account Farming</option>
+                      <option value="Placement Matches">Placement Matches</option>
+                      <option value="Duo Queue">Duo Queue</option>
+                      <option value="Win Boosting">Win Boosting</option>
+                      <option value="Achievement Unlocking">Achievement Unlocking</option>
+                    </select>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4 mb-5">
                     <div>
                       <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-1.5">Current Level</label>
@@ -385,7 +413,7 @@ const JobPost = () => {
             )}
 
             <button
-              onClick={onSubmit}
+              onClick={handlePublishClick}
               disabled={isLoading || !selectedGame}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-black py-4 rounded text-sm uppercase tracking-widest transition-colors flex items-center justify-center gap-2 mb-3"
             >
@@ -396,6 +424,16 @@ const JobPost = () => {
             <p className="text-center text-xs text-gray-400">
               🔒 100% SECURE TRANSACTION & MONEY BACK GUARANTEE
             </p>
+
+            <ConfirmModal 
+              isOpen={showConfirmModal}
+              onClose={() => setShowConfirmModal(false)}
+              onConfirm={onSubmit}
+              title="Confirm Job Post"
+              message={`You are about to post this job. A temporary hold of ${totalCost} ◈ will be authorized from your account. Are you sure you wish to proceed?`}
+              confirmText="Publish Job"
+              confirmColor="bg-blue-600"
+            />
           </div>
 
           {/* ── RIGHT SIDEBAR ── */}
@@ -414,7 +452,9 @@ const JobPost = () => {
                   </div>
                   <div>
                     <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-bold uppercase block mb-0.5">Category</span>
-                    <p className="font-black text-gray-900 text-xs">{selectedGame || 'Select a Game'}</p>
+                    <p className="font-black text-gray-900 text-xs">
+                      {selectedGame || 'Select a Game'} {serviceType && <span className="text-blue-600 ml-1">• {serviceType}</span>}
+                    </p>
                     <p className="text-gray-400 text-xs">Post by {user?.name || 'Alex Gamer'}</p>
                   </div>
                 </div>

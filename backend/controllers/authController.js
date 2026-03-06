@@ -2,7 +2,7 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { sendPasswordResetEmail } = require('../utils/email');
+const { sendPasswordResetEmail, sendVerificationEmail, sendSecurityAlert } = require('../utils/email');
 
 // @route   POST /api/auth/register
 // @desc    Register a user
@@ -27,7 +27,16 @@ exports.register = async (req, res) => {
         const salt = await bcrypt.genSalt(12);
         user.password = await bcrypt.hash(password, salt);
 
+        // Generate Verification Token
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        user.emailVerificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
+
         await user.save();
+
+        // Send Verification Email
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const verifyUrl = `${frontendUrl}/verify-email/${verificationToken}`;
+        await sendVerificationEmail(user.email, verifyUrl);
 
         // Return JWT
         const payload = {
@@ -49,6 +58,29 @@ exports.register = async (req, res) => {
     }
 };
 
+// @route   GET /api/auth/verify-email/:token
+// @desc    Verify user email
+// @access  Public
+exports.verifyEmail = async (req, res) => {
+    try {
+        const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+
+        const user = await User.findOne({ emailVerificationToken: hashedToken });
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired verification token' });
+        }
+
+        user.isEmailVerified = true;
+        user.emailVerificationToken = undefined;
+        await user.save();
+
+        res.json({ message: 'Email verified successfully! You can now log in.' });
+    } catch (err) {
+        console.error('verifyEmail error:', err.message);
+        res.status(500).send('Server error');
+    }
+};
+
 // @route   POST /api/auth/login
 // @desc    Authenticate user & get token
 // @access  Public
@@ -61,9 +93,13 @@ exports.login = async (req, res) => {
         }
 
         // Check for user
-        let user = await User.findOne({ email });
+        let user = await User.findOne({ email }).select('+password +isEmailVerified');
         if (!user) {
             return res.status(400).json({ message: 'Invalid Credentials' });
+        }
+
+        if (!user.isEmailVerified) {
+            return res.status(403).json({ message: 'Please verify your email address before logging in.' });
         }
 
         // Match password
@@ -186,7 +222,7 @@ exports.discordCallback = async (req, res) => {
 
         // 5. Redirect to frontend with token
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-        res.redirect(`${frontendUrl}/dashboard?token=${jwtToken}&discord_linked=true`);
+        res.redirect(`${frontendUrl}/auth/callback?token=${jwtToken}&discord_linked=true`);
 
     } catch (err) {
         console.error('Discord OAuth Error Catch Block:', err.message);
@@ -279,6 +315,10 @@ exports.changePassword = async (req, res) => {
         const salt = await bcrypt.genSalt(12);
         user.password = await bcrypt.hash(newPassword, salt);
         await user.save();
+
+        try {
+            await sendSecurityAlert(user.email, 'password');
+        } catch (_) { }
 
         res.json({ message: 'Password changed successfully.' });
     } catch (err) {

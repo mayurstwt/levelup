@@ -4,6 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { formatTimeAgo, STATUS_COLORS, formatCurrency } from '../utils/ui-helpers';
+import ConfirmModal from '../components/ConfirmModal';
 
 const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -52,6 +53,10 @@ const JobDetails = () => {
   const [myBid, setMyBid] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: '', description: '', budget: '', timeline: '' });
+
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [bidIdToWithdraw, setBidIdToWithdraw] = useState(null);
 
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
   const authHeader = { headers: { Authorization: `Bearer ${token}` } };
@@ -103,11 +108,20 @@ const JobDetails = () => {
     }
   };
 
-  const submitBid = async (e) => {
-    e.preventDefault(); setBidLoading(true); setBidError(null);
+  const submitBid = async () => {
+    setBidLoading(true); setBidError(null);
     try { await axios.post(`${backendUrl}/bids`, { jobId: id, bidAmount: Number(bidAmount), message: bidMessage }, authHeader); navigate('/dashboard'); }
     catch (err) { setBidError(err.response?.data?.message || 'Failed to submit bid'); }
     finally { setBidLoading(false); }
+  };
+
+  const handleApplyClick = (e) => {
+    e.preventDefault();
+    if (!bidAmount || !bidMessage) {
+      setBidError('Please fill out both the bid amount and message.');
+      return;
+    }
+    setShowApplyModal(true);
   };
 
   const acceptBid = async (bidId) => {
@@ -132,8 +146,14 @@ const JobDetails = () => {
     finally { setActionLoading(false); }
   };
 
-  const withdrawMyBid = async (bidId) => {
-    try { await axios.delete(`${backendUrl}/bids/${bidId}`, authHeader); toast.success('Bid withdrawn successfully.'); navigate('/dashboard'); }
+  const handleWithdrawClick = (bidId) => {
+    setBidIdToWithdraw(bidId);
+    setShowWithdrawModal(true);
+  };
+
+  const withdrawMyBid = async () => {
+    if (!bidIdToWithdraw) return;
+    try { await axios.delete(`${backendUrl}/bids/${bidIdToWithdraw}`, authHeader); toast.success('Bid withdrawn successfully.'); navigate('/dashboard'); }
     catch (err) { toast.error(err.response?.data?.message || 'Could not withdraw bid'); }
   };
 
@@ -264,6 +284,50 @@ const JobDetails = () => {
                     <span style={{ color: '#4f8ef7', fontSize: 13 }}>🔒</span>
                     <span style={{ fontWeight: 700, fontSize: 10.5, color: '#333', textTransform: 'uppercase', letterSpacing: 0.3 }}>Escrow Protected Payment Enabled</span>
                   </div>
+                </div>
+              </div>
+
+              {/* PAYMENT PIPELINE VISUALIZER */}
+              <div style={{ borderTop: '1.5px solid #eee', padding: '20px 22px', background: '#fafafa' }}>
+                <h3 style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', marginBottom: 16, color: '#111', letterSpacing: 0.5 }}>
+                  Payment & Escrow Pipeline
+                </h3>
+                
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+                  {/* Background Track */}
+                  <div style={{ position: 'absolute', top: 14, left: 20, right: 20, height: 4, background: '#e5e7eb', zIndex: 0, borderRadius: 2 }}></div>
+                  
+                  {/* Active Track */}
+                  <div style={{ 
+                    position: 'absolute', top: 14, left: 20, height: 4, background: '#4f8ef7', zIndex: 1, borderRadius: 2, transition: 'width 0.5s ease',
+                    width: isCompleted ? '100%' : isMatched ? '50%' : '0%' 
+                  }}></div>
+
+                  {[
+                    { label: 'Fund Escrow', active: true, desc: 'Securely Locked' },
+                    { label: 'Job Matched', active: isMatched || isCompleted || isDisputed, desc: 'Work Begins' },
+                    { label: 'Payout Released', active: isCompleted, desc: 'Funds Sent' }
+                  ].map((step, idx) => (
+                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, gap: 8, background: '#fafafa', padding: '0 6px' }}>
+                      <div style={{ 
+                        width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                        background: step.active ? '#3b82f6' : '#fff', 
+                        border: step.active ? '2px solid #3b82f6' : '2px solid #d1d5db',
+                        color: step.active ? 'white' : '#9ca3af',
+                        fontWeight: 900, fontSize: 14, transition: 'all 0.3s ease'
+                      }}>
+                        {step.active ? '✓' : idx + 1}
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 11, fontWeight: step.active ? 800 : 600, color: step.active ? '#111' : '#6b7280', textTransform: 'uppercase' }}>
+                          {step.label}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>
+                          {step.desc}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -424,10 +488,43 @@ const JobDetails = () => {
                       <span style={{ fontWeight: 800, color: '#4f8ef7', fontSize: 16 }}>{myBid.bidAmount} ◈</span>
                     </div>
                     {myBid.message && <p style={{ fontSize: 12, color: '#666', fontStyle: 'italic', background: '#f9f9f9', border: '1px solid #eee', borderRadius: 4, padding: '8px 10px', marginBottom: 14, margin: '0 0 14px' }}>"{myBid.message}"</p>}
-                    <button onClick={() => withdrawMyBid(myBid._id)} style={{ width: '100%', background: 'white', border: '2px solid #dc2626', color: '#dc2626', borderRadius: 4, padding: 9, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>🗑 Withdraw Bid</button>
+                    <button onClick={() => handleWithdrawClick(myBid._id)} style={{ width: '100%', background: 'white', border: '2px solid #dc2626', color: '#dc2626', borderRadius: 4, padding: 9, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>🗑 Withdraw Bid</button>
                   </div>
                 </div>
-              ) : null
+              ) : (
+                <div style={{ border: '1.5px solid #ddd', borderRadius: 6, background: 'white', padding: 24, marginTop: 24 }}>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 800, textTransform: 'uppercase', color: '#111', margin: '0 0 16px' }}>
+                     Apply for this Job
+                  </h3>
+                  {bidError && (
+                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#dc2626', padding: '10px 14px', borderRadius: 4, fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+                      {bidError}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#444', textTransform: 'uppercase', marginBottom: 6 }}>Your Price (◈)</label>
+                      <input 
+                        type="number" 
+                        value={bidAmount} 
+                        onChange={e => setBidAmount(e.target.value)} 
+                        placeholder={job.budget?.toString() || '2000'}
+                        style={{ width: '100%', border: '2px solid #333', borderRadius: 4, padding: '10px 14px', fontSize: 16, fontWeight: 800, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#444', textTransform: 'uppercase', marginBottom: 6 }}>Proposal Message</label>
+                      <textarea 
+                        value={bidMessage} 
+                        onChange={e => setBidMessage(e.target.value)} 
+                        placeholder="Explain why you're the best booster for this specific job. Mention your peak rank and average completion time..."
+                        rows={4}
+                        style={{ width: '100%', border: '2px solid #ccc', borderRadius: 4, padding: '10px 14px', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
             )}
           </div>
 
@@ -471,12 +568,12 @@ const JobDetails = () => {
                     <button style={{ width: '100%', background: '#4f8ef7', color: 'white', border: 'none', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>Edit Job Posting</button>
                     <button style={{ width: '100%', background: 'white', color: '#333', border: '1.5px solid #ccc', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}>Cancel Posting</button>
                   </>
-                ) : (
+                ) : user?.role === 'seller' && job.status === 'open' && !myBid ? (
                   <>
-                    <button style={{ width: '100%', background: '#4f8ef7', color: 'white', border: 'none', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>Apply for Job</button>
+                    <button onClick={handleApplyClick} disabled={bidLoading} style={{ width: '100%', background: '#4f8ef7', color: 'white', border: 'none', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>{bidLoading ? 'Submitting...' : 'Submit Proposal'}</button>
                     <button style={{ width: '100%', background: 'white', color: '#333', border: '1.5px solid #ccc', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}>Save Job</button>
                   </>
-                )}
+                ) : null}
               </div>
 
               {/* Safety Tip */}
@@ -549,6 +646,26 @@ const JobDetails = () => {
           </div>
         </div>
       </footer>
+
+      <ConfirmModal 
+        isOpen={showApplyModal}
+        onClose={() => setShowApplyModal(false)}
+        onConfirm={submitBid}
+        title="Confirm Proposal"
+        message={`You are about to submit a bid of ${bidAmount} ◈ for this job. You will be bound by the platform SLAs if the buyer accepts. Proceed?`}
+        confirmText="Submit Bid"
+        confirmColor="bg-blue-600"
+      />
+
+      <ConfirmModal 
+        isOpen={showWithdrawModal}
+        onClose={() => setShowWithdrawModal(false)}
+        onConfirm={withdrawMyBid}
+        title="Withdraw Bid"
+        message="Are you sure you want to withdraw your bid? This action cannot be undone."
+        confirmText="Withdraw"
+        confirmColor="bg-red-600"
+      />
     </div>
   );
 };

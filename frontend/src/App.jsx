@@ -20,6 +20,8 @@ import ResetPassword from './pages/ResetPassword';
 import ChangePassword from './pages/ChangePassword';
 import MyBids from './pages/MyBids';
 import TermsOfService from './pages/TermsOfService';
+import VerifyEmail from './pages/VerifyEmail';
+import AuthCallback from './pages/AuthCallback';
 import useSocket from './hooks/useSocket';
 
 // Protected Route
@@ -60,15 +62,16 @@ function AppInner() {
 
       <Navbar />
       <Routes>
-        {/* Public */}
         <Route path="/" element={<HomeRoute />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email/:token" element={<VerifyEmail />} />
         <Route path="/jobs" element={<JobListing />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/seller/:id" element={<SellerProfile />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/terms" element={<TermsOfService />} />
 
         {/* Protected */}

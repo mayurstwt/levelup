@@ -11,15 +11,17 @@ exports.getChat = async (req, res) => {
         // Verify user has access to this job's chat
         const job = await Job.findById(jobId);
         if (!job) {
-             return res.status(404).json({ message: 'Job not found' });
+            return res.status(404).json({ message: 'Job not found' });
         }
 
         if (job.buyerId.toString() !== req.user.id && job.sellerId?.toString() !== req.user.id && req.user.role !== 'admin') {
-             return res.status(403).json({ message: 'Not authorized to view this chat' });
+            return res.status(403).json({ message: 'Not authorized to view this chat' });
         }
 
-        let chat = await Chat.findOne({ jobId }).populate('messages.senderId', ['name']);
-        
+        let chat = await Chat.findOne({ jobId })
+            .populate('messages.senderId', ['name'])
+            .populate('messages.readBy', ['name']); // Populate array of users who read it
+
         if (!chat) {
             // If no chat document exists yet, create an empty one
             chat = new Chat({
