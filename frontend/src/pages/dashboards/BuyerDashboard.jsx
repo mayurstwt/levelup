@@ -43,7 +43,10 @@ const BuyerDashboard = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <div className="bg-blue-600 border-2 border-gray-900 p-5 text-white flex flex-col justify-between h-32 relative overflow-hidden group shadow-[4px_4px_0_0_#111]">
+          <div
+            onClick={() => document.getElementById('active-missions-section')?.scrollIntoView({ behavior: 'smooth' })}
+            className="bg-blue-600 border-2 border-gray-900 p-5 text-white flex flex-col justify-between h-32 relative overflow-hidden group shadow-[4px_4px_0_0_#111] cursor-pointer hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#111] transition-all"
+          >
             <div className="flex justify-between items-start relative z-10">
               <span className="text-xs font-black uppercase tracking-wider">Active Contracts</span>
               <svg className="w-5 h-5 opacity-50" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
@@ -53,7 +56,10 @@ const BuyerDashboard = () => {
             </div>
           </div>
 
-          <div className="bg-white border-2 border-gray-900 p-5 text-gray-900 flex flex-col justify-between h-32 relative shadow-[4px_4px_0_0_#111]">
+          <div
+            onClick={() => document.getElementById('open-listings-section')?.scrollIntoView({ behavior: 'smooth' })}
+            className="bg-white border-2 border-gray-900 p-5 text-gray-900 flex flex-col justify-between h-32 relative shadow-[4px_4px_0_0_#111] cursor-pointer hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#111] transition-all"
+          >
             <div className="flex justify-between items-start">
               <span className="text-xs font-black uppercase tracking-wider text-gray-500">Open Job Posts</span>
               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"></path></svg>
@@ -63,7 +69,10 @@ const BuyerDashboard = () => {
             </div>
           </div>
 
-          <div className="bg-[#0cf3e1] border-2 border-gray-900 p-5 text-gray-900 flex flex-col justify-between h-32 relative shadow-[4px_4px_0_0_#111]">
+          <div
+            onClick={() => navigate('/jobs?sortBy=budget')}
+            className="bg-[#0cf3e1] border-2 border-gray-900 p-5 text-gray-900 flex flex-col justify-between h-32 relative shadow-[4px_4px_0_0_#111] cursor-pointer hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#111] transition-all"
+          >
             <div className="flex justify-between items-start">
               <span className="text-xs font-black uppercase tracking-wider bg-black/10 px-2 py-1">Total Spent</span>
               <svg className="w-5 h-5 text-gray-900" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
@@ -73,7 +82,10 @@ const BuyerDashboard = () => {
             </div>
           </div>
 
-          <div className="bg-white border-2 border-gray-900 p-5 text-gray-900 flex flex-col justify-between h-32 relative shadow-[4px_4px_0_0_#111]">
+          <div
+            onClick={() => document.getElementById('open-listings-section')?.scrollIntoView({ behavior: 'smooth' })}
+            className="bg-white border-2 border-gray-900 p-5 text-gray-900 flex flex-col justify-between h-32 relative shadow-[4px_4px_0_0_#111] cursor-pointer hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#111] transition-all"
+          >
             <div className="flex justify-between items-start">
               <span className="text-xs font-black uppercase tracking-wider text-gray-500">Avg. Success</span>
               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -87,7 +99,7 @@ const BuyerDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4">
           
           {/* Active Missions (Matched Jobs) */}
-          <div className="space-y-4">
+          <div id="active-missions-section" className="space-y-4">
             <div className="flex items-center justify-between pb-2 border-b-2 border-gray-900">
               <h2 className="text-lg font-black uppercase tracking-widest flex items-center gap-2">
                 <span className="text-blue-600 text-2xl">🏆</span> ACTIVE MISSIONS
@@ -142,7 +154,7 @@ const BuyerDashboard = () => {
           </div>
 
           {/* Open Job Listings */}
-          <div className="space-y-4">
+          <div id="open-listings-section" className="space-y-4">
             <div className="flex items-center justify-between pb-2 border-b-2 border-gray-900">
               <h2 className="text-lg font-black uppercase tracking-widest flex items-center gap-2">
                 <span className="text-blue-600 text-2xl">📋</span> OPEN JOB LISTINGS

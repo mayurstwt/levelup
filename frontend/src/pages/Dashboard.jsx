@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { Navigate } from 'react-router-dom';
 import { getUserJobs } from '../features/jobs/jobSlice';
 import { setCredentials } from '../features/auth/authSlice';
 import BuyerDashboard from './dashboards/BuyerDashboard';
@@ -26,11 +27,15 @@ const Dashboard = () => {
     }
   }, [dispatch]);
 
+  if (user?.role === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+
   if (user?.role === 'seller') {
     return <SellerDashboard />;
   }
 
-  // Default to Buyer Dashboard for buyers (and admins if they hit this route)
+  // Default to Buyer Dashboard for buyers
   return <BuyerDashboard />;
 };
 

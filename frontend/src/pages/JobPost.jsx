@@ -72,8 +72,23 @@ const JobPost = () => {
 
   const onSubmit = async () => {
     const gameTitle = selectedGame || 'Other';
+    if (!serviceType) {
+      toast.error('Please select a service type in Step 2');
+      setStep(2);
+      return;
+    }
+    if (!description.trim()) {
+      toast.error('Please add a job description in Step 2');
+      setStep(2);
+      return;
+    }
+    if (!budget || budget < 5) {
+      toast.error('Please set a budget of at least $5 in Step 3');
+      setStep(3);
+      return;
+    }
     const result = await dispatch(createJob({
-      title: `${gameTitle} – ${targetLevel ? `Lvl ${currentLevel} → ${targetLevel}` : 'Boost Request'}`,
+      title: `${gameTitle} – ${targetLevel ? `Lvl ${currentLevel} → ${targetLevel}` : serviceType || 'Boost Request'}`,
       description,
       game: gameTitle,
       serviceType,
@@ -170,6 +185,15 @@ const JobPost = () => {
                     </button>
                   ))}
                 </div>
+                <div className="flex justify-end mt-4">
+                  <button
+                    type="button"
+                    onClick={() => { if (!selectedGame) { toast.error('Please select a game first'); return; } setStep(2); }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-black text-sm px-5 py-2 rounded flex items-center gap-2 transition-colors"
+                  >
+                    Continue to Mission Targets →
+                  </button>
+                </div>
               </section>
             )}
 
@@ -200,28 +224,84 @@ const JobPost = () => {
                     </select>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-5">
-                    <div>
-                      <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-1.5">Current Level</label>
+                  {/* Dynamic inputs based on service type */}
+                  {(serviceType === 'Power Leveling' || serviceType === 'Rank Boosting' || serviceType === 'Win Boosting' || serviceType === 'Account Farming') && (
+                    <div className="grid grid-cols-2 gap-4 mb-5">
+                      <div>
+                        <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-1.5">Current Level / Rank</label>
+                        <input
+                          type="text"
+                          value={currentLevel}
+                          onChange={(e) => setCurrentLevel(e.target.value)}
+                          placeholder={serviceType === 'Rank Boosting' ? 'e.g. Gold 4' : 'e.g. 15'}
+                          className="w-full border-2 border-gray-200 focus:border-blue-500 rounded px-3 py-2 text-sm outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-blue-600 uppercase tracking-wider mb-1.5">Target Level / Rank</label>
+                        <input
+                          type="text"
+                          value={targetLevel}
+                          onChange={(e) => setTargetLevel(e.target.value)}
+                          placeholder={serviceType === 'Rank Boosting' ? 'e.g. Platinum 1' : 'e.g. 60'}
+                          className="w-full border-2 border-blue-200 focus:border-blue-500 rounded px-3 py-2 text-sm outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {serviceType === 'Coaching' && (
+                    <div className="mb-5">
+                      <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-1.5">Number of Coaching Sessions</label>
                       <input
-                        type="text"
+                        type="number"
                         value={currentLevel}
                         onChange={(e) => setCurrentLevel(e.target.value)}
-                        placeholder="e.g. 15"
+                        placeholder="e.g. 3"
+                        min={1}
+                        className="w-full border-2 border-gray-200 focus:border-blue-500 rounded px-3 py-2 text-sm outline-none transition-colors"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Specify how many 1-hour sessions you want.</p>
+                    </div>
+                  )}
+                  {serviceType === 'Duo Queue' && (
+                    <div className="mb-5">
+                      <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-1.5">Number of Duo Games</label>
+                      <input
+                        type="number"
+                        value={currentLevel}
+                        onChange={(e) => setCurrentLevel(e.target.value)}
+                        placeholder="e.g. 10"
+                        min={1}
                         className="w-full border-2 border-gray-200 focus:border-blue-500 rounded px-3 py-2 text-sm outline-none transition-colors"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-black text-blue-600 uppercase tracking-wider mb-1.5">Target Level</label>
+                  )}
+                  {serviceType === 'Placement Matches' && (
+                    <div className="mb-5">
+                      <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-1.5">How many placement matches?</label>
+                      <input
+                        type="number"
+                        value={currentLevel}
+                        onChange={(e) => setCurrentLevel(e.target.value)}
+                        placeholder="e.g. 5"
+                        min={1}
+                        max={10}
+                        className="w-full border-2 border-gray-200 focus:border-blue-500 rounded px-3 py-2 text-sm outline-none transition-colors"
+                      />
+                    </div>
+                  )}
+                  {serviceType === 'Achievement Unlocking' && (
+                    <div className="mb-5">
+                      <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-1.5">Achievement / Trophy Name</label>
                       <input
                         type="text"
                         value={targetLevel}
                         onChange={(e) => setTargetLevel(e.target.value)}
-                        placeholder="e.g. 60"
-                        className="w-full border-2 border-blue-200 focus:border-blue-500 rounded px-3 py-2 text-sm outline-none transition-colors"
+                        placeholder="e.g. 'The Undying', '100% completion'"
+                        className="w-full border-2 border-gray-200 focus:border-blue-500 rounded px-3 py-2 text-sm outline-none transition-colors"
                       />
                     </div>
-                  </div>
+                  )}
 
                   <div className="mb-5">
                     <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-3">Additional Conditions</label>
@@ -280,10 +360,10 @@ const JobPost = () => {
                     {/* Left — offer */}
                     <div>
                       <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-2">
-                        Your Offer (Diamonds)
+                        Your Offer (USD $)
                       </label>
-                      <div className="flex items-center border-2 border-blue-300 focus-within:border-blue-600 rounded overflow-hidden mb-2">
-                        <span className="px-3 text-blue-500 font-black text-sm bg-blue-50 border-r-2 border-blue-300 py-2.5">◈</span>
+                      <div className="flex items-center border-2 border-green-300 focus-within:border-green-600 rounded overflow-hidden mb-2">
+                        <span className="px-3 text-green-600 font-black text-sm bg-green-50 border-r-2 border-green-300 py-2.5">$</span>
                         <input
                           type="number"
                           value={budget}
@@ -316,15 +396,15 @@ const JobPost = () => {
                     <div className="border-2 border-gray-100 rounded p-4 bg-gray-50">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-xs text-gray-500 font-semibold">Seller Payout</span>
-                        <span className="text-sm font-black text-gray-900">{budget} <span className="text-blue-400">◈</span></span>
+                        <span className="text-sm font-black text-gray-900">${budget}</span>
                       </div>
                       <div className="flex justify-between items-center mb-3 pb-3 border-b border-gray-200">
                         <span className="text-xs text-gray-500 font-semibold">Platform Fee (10%) ⓘ</span>
-                        <span className="text-sm font-black text-green-500">+{platformFee} <span className="text-green-400">◈</span></span>
+                        <span className="text-sm font-black text-green-500">+${platformFee}</span>
                       </div>
                       <div className="flex justify-between items-center mb-3">
                         <span className="text-xs font-black text-gray-800 uppercase">Total Cost</span>
-                        <span className="text-lg font-black text-blue-600">{totalCost} <span className="text-blue-400">◈</span></span>
+                        <span className="text-lg font-black text-green-600">${totalCost}</span>
                       </div>
                       <p className="text-xs text-gray-400 leading-relaxed">
                         <span className="font-bold text-gray-600">Funds are in SECURE ESCROW</span> and only released when you confirm the job is complete.
@@ -400,15 +480,18 @@ const JobPost = () => {
               <div>
                 <p className="text-xs font-black text-gray-800 uppercase mb-0.5">Ready to Publish?</p>
                 <p className="text-xs text-gray-500">
-                  By clicking below, you agree to our Marketplace Terms and authorize a temporary hold on <span className="font-black text-blue-600">{totalCost} ◈</span>.
+                  By clicking below, you agree to our Marketplace Terms and authorize a temporary hold on <span className="font-black text-green-600">${totalCost}</span>.
                 </p>
               </div>
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 bg-red-50 border-2 border-red-400 rounded p-3 mb-4 text-sm text-red-700 font-semibold">
-                <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                {error}
+              <div className="flex flex-col gap-1 bg-red-50 border-2 border-red-400 rounded p-3 mb-4">
+                <div className="flex items-center gap-2 text-sm text-red-700 font-semibold">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                  {typeof error === 'string' ? error : 'Error creating job. Please check your inputs below.'}
+                </div>
+                <p className="text-xs text-red-500 ml-6">Make sure you have: selected a game (Step 1), chosen a service type &amp; added a description (Step 2), and set a budget ≥ $5 (Step 3).</p>
               </div>
             )}
 

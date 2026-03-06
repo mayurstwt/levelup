@@ -23,6 +23,7 @@ const Chat = () => {
   const [error, setError] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
   const [mediaFile, setMediaFile] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
   const socketRef = useRef();
@@ -132,6 +133,8 @@ const Chat = () => {
         }
         setIsUploading(false);
         setMediaFile(null);
+        setMediaPreview(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     }
 
     // Now emit the message, optionally containing an image
@@ -151,7 +154,9 @@ const Chat = () => {
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setMediaFile(e.target.files[0]);
+      const file = e.target.files[0];
+      setMediaFile(file);
+      setMediaPreview(URL.createObjectURL(file));
     }
   };
 
@@ -263,11 +268,15 @@ const Chat = () => {
       <div className="bg-white border-t-2 border-gray-200 px-4 py-3 flex-shrink-0">
         
         {/* Attachment Preview Overlay */}
-        {mediaFile && (
-          <div className="mb-3 flex items-center gap-3 bg-gray-100 p-2 rounded border border-gray-200 w-max">
-            <span className="text-xs font-bold text-gray-600 truncate max-w-[150px]">📎 {mediaFile.name}</span>
-            <button onClick={() => setMediaFile(null)} className="text-gray-400 hover:text-red-500 transition-colors">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        {mediaPreview && (
+          <div className="mb-3 flex items-end gap-3 bg-gray-100 p-2 rounded border border-gray-200 w-max">
+            <img src={mediaPreview} alt="Preview" className="w-20 h-20 object-cover rounded border border-gray-300 shadow-sm" />
+            <button
+              onClick={() => { setMediaFile(null); setMediaPreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+              className="mb-1 text-gray-400 hover:text-red-500 transition-colors"
+              title="Remove"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
         )}

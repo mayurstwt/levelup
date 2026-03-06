@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../features/auth/authSlice';
 import { markNotificationsRead } from '../features/notifications/notificationSlice';
+import ConfirmModal from './ConfirmModal';
 
 const Navbar = () => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
@@ -12,9 +13,15 @@ const Navbar = () => {
   const location = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
     dispatch(logout());
+    setShowLogoutModal(false);
     navigate('/');
   };
 
@@ -172,14 +179,7 @@ const Navbar = () => {
               </div>
 
               {/* Role CTA button */}
-              {user?.role === 'buyer' && (
-                <button
-                  onClick={() => navigate('/post-job')}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-black text-xs px-3 py-1.5 rounded transition-colors"
-                >
-                  + Post Job
-                </button>
-              )}
+
               {user?.role === 'seller' && (
                 <button
                   onClick={() => navigate('/seller-onboarding')}

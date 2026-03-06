@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: false },
     discordId: { type: String, required: false, unique: true, sparse: true },
+    googleId: { type: String, required: false, unique: true, sparse: true },
     role: { type: String, enum: ['buyer', 'seller', 'admin'], default: 'buyer' },
     name: { type: String, required: true },
     bio: { type: String, default: '' },

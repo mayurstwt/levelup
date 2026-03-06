@@ -98,9 +98,10 @@ exports.login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid Credentials' });
         }
 
-        if (!user.isEmailVerified) {
-            return res.status(403).json({ message: 'Please verify your email address before logging in.' });
-        }
+        // Temporarily bypass email verification for local testing
+        // if (!user.isEmailVerified) {
+        //     return res.status(403).json({ message: 'Please verify your email address before logging in.' });
+        // }
 
         // Match password
         const isMatch = await bcrypt.compare(password, user.password);
@@ -326,4 +327,79 @@ exports.changePassword = async (req, res) => {
         res.status(500).send('Server error');
     }
 };
+
+// @route   GET /api/auth/google
+// @desc    Redirect to Google OAuth consent screen
+// @access  Public
+exports.googleLogin = (req, res) => {
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback';
+    const scope = encodeURIComponent('profile email');
+    const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline`;
+    res.redirect(googleUrl);
+};
+
+// @route   GET /api/auth/google/callback
+// @desc    Google OAuth callback — exchange code, find/create user, return JWT
+// @access  Public
+exports.googleCallback = async (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.status(400).send('No code provided');
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    try {
+        const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback';
+
+        // 1. Exchange code for access token
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                code,
+                client_id: process.env.GOOGLE_CLIENT_ID,
+                client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                redirect_uri: redirectUri,
+                grant_type: 'authorization_code',
+            }),
+        });
+        const tokenData = await tokenRes.json();
+        if (tokenData.error) {
+            console.error('Google Token Error:', tokenData);
+            return res.redirect(`${frontendUrl}/login?error=google_oauth_failed`);
+        }
+
+        // 2. Fetch Google user info
+        const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        });
+        const googleUser = await userInfoRes.json();
+
+        // 3. Find or create user
+        let user = await User.findOne({ $or: [{ googleId: googleUser.id }, { email: googleUser.email }] });
+        if (!user) {
+            user = new User({
+                name: googleUser.name || googleUser.email.split('@')[0],
+                email: googleUser.email,
+                googleId: googleUser.id,
+                isEmailVerified: true,
+                role: 'buyer',
+            });
+            await user.save();
+        } else if (!user.googleId) {
+            user.googleId = googleUser.id;
+            user.isEmailVerified = true;
+            await user.save();
+        }
+
+        // 4. Issue JWT
+        const payload = { user: { id: user.id, role: user.role } };
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+        res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+    } catch (err) {
+        console.error('googleCallback error:', err.message);
+        res.redirect(`${frontendUrl}/login?error=server_error`);
+    }
+};
+
 

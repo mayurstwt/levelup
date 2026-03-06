@@ -19,7 +19,7 @@ exports.submitBid = async (req, res) => {
         const existingBid = await Bid.findOne({ jobId, sellerId: req.user.id });
         if (existingBid) return res.status(400).json({ message: 'You have already placed a bid on this job' });
 
-        if (bidAmount > job.budget * 2) return res.status(400).json({ message: 'Bid amount cannot exceed twice the job budget' });
+        if (bidAmount > job.budget * 5) return res.status(400).json({ message: `Bid amount cannot exceed 5× the job budget ($${job.budget * 5})` });
 
         const bid = await new Bid({ jobId, bidAmount, message, sellerId: req.user.id }).save();
 

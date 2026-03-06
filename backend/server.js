@@ -97,7 +97,7 @@ app.use('/api/chats', require('./routes/chats'));
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { protect } = require('./middleware/authMiddleware');
+const protect = require('./middleware/auth');
 
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -115,7 +115,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
     fileFilter: (req, file, cb) => {
         if (file.mimetype.startsWith('image/')) {
             cb(null, true);

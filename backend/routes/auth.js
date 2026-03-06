@@ -39,5 +39,8 @@ router.put('/change-password', [
 router.get('/discord', authController.discordLogin);
 router.get('/discord/callback', authController.discordCallback);
 
-module.exports = router;
+// Google OAuth
+router.get('/google', authController.googleLogin);
+router.get('/google/callback', authController.googleCallback);
 
+module.exports = router;

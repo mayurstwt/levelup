@@ -563,15 +563,49 @@ const JobDetails = () => {
                   <span style={{ fontWeight: 900, fontSize: 15, color: '#4f8ef7', display: 'flex', alignItems: 'center', gap: 3 }}>{maxTotal.toLocaleString()}<span style={{ fontSize: 11 }}>◈</span></span>
                 </div>
 
-                {isOwner ? (
+                {isOwner && job.status === 'open' ? (
                   <>
-                    <button style={{ width: '100%', background: '#4f8ef7', color: 'white', border: 'none', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>Edit Job Posting</button>
-                    <button style={{ width: '100%', background: 'white', color: '#333', border: '1.5px solid #ccc', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}>Cancel Posting</button>
+                    <button
+                      onClick={() => { setIsEditing(true); document.querySelector('[data-job-card]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                      style={{ width: '100%', background: '#4f8ef7', color: 'white', border: 'none', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}
+                    >
+                      ✏️ Edit Job Posting
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm('Cancel this job posting? This cannot be undone.')) return;
+                        setActionLoading(true);
+                        try {
+                          await axios.put(`${backendUrl}/jobs/${id}`, { status: 'cancelled' }, authHeader);
+                          toast.success('Job posting cancelled.');
+                          navigate('/dashboard');
+                        } catch (err) {
+                          toast.error(err.response?.data?.message || 'Could not cancel posting');
+                        } finally { setActionLoading(false); }
+                      }}
+                      disabled={actionLoading}
+                      style={{ width: '100%', background: 'white', color: '#dc2626', border: '1.5px solid #dc2626', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}
+                    >
+                      {actionLoading ? '...' : '🗑 Cancel Posting'}
+                    </button>
                   </>
                 ) : user?.role === 'seller' && job.status === 'open' && !myBid ? (
                   <>
                     <button onClick={handleApplyClick} disabled={bidLoading} style={{ width: '100%', background: '#4f8ef7', color: 'white', border: 'none', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>{bidLoading ? 'Submitting...' : 'Submit Proposal'}</button>
-                    <button style={{ width: '100%', background: 'white', color: '#333', border: '1.5px solid #ccc', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}>Save Job</button>
+                    <button
+                      onClick={() => {
+                        const saved = JSON.parse(localStorage.getItem('savedJobs') || '[]');
+                        if (!saved.includes(id)) {
+                          localStorage.setItem('savedJobs', JSON.stringify([...saved, id]));
+                          toast.success('Job saved! Find it in Browse Jobs.');
+                        } else {
+                          toast('Job already saved.', { icon: '📌' });
+                        }
+                      }}
+                      style={{ width: '100%', background: 'white', color: '#333', border: '1.5px solid #ccc', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}
+                    >
+                      📌 Save Job
+                    </button>
                   </>
                 ) : null}
               </div>
