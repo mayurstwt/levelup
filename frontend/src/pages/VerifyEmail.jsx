@@ -10,7 +10,8 @@ const VerifyEmail = () => {
     useEffect(() => {
         const verify = async () => {
             try {
-                const res = await axios.get(`${import.meta.env.VITE_API_URL}/auth/verify-email/${token}`);
+                const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                const res = await axios.get(`${backendUrl}/auth/verify-email/${token}`);
                 setStatus('success');
                 setMessage(res.data.message);
             } catch (err) {

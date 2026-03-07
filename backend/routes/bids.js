@@ -18,5 +18,7 @@ router.get('/mine', auth, bidController.getMyBids);
 router.get('/job/:jobId', auth, bidController.getJobBids);
 router.put('/:id/accept', auth, bidController.acceptBid);
 router.delete('/:id', auth, bidController.withdrawBid);
+router.post('/:id/counter', auth, bidController.counterOffer);
+router.post('/:id/counter/accept', auth, bidController.acceptCounterOffer);
 
 module.exports = router;

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -14,23 +16,57 @@ const StarDisplay = ({ value }) => (
 
 const SellerProfile = () => {
   const { id } = useParams();
+  const { user: currentUser } = useSelector(state => state.auth);
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showPortfolioForm, setShowPortfolioForm] = useState(false);
+  const [portfolioForm, setPortfolioForm] = useState({ title: '', imageUrl: '', link: '' });
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+  const authHeader = { headers: { Authorization: `Bearer ${token}` } };
+
+  const fetchProfile = async () => {
+    try {
+      const res = await axios.get(`${backendUrl}/users/${id}/profile`);
+      setData(res.data);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetch = async () => {
-      try {
-        const res = await axios.get(`${backendUrl}/users/${id}/profile`);
-        setData(res.data);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load profile');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetch();
+    fetchProfile();
   }, [id]);
+
+  const handleAddPortfolio = async (e) => {
+    e.preventDefault();
+    if (!portfolioForm.title) return toast.error('Title is required');
+    setActionLoading(true);
+    try {
+      await axios.post(`${backendUrl}/users/portfolio`, portfolioForm, authHeader);
+      toast.success('Portfolio item added');
+      setPortfolioForm({ title: '', imageUrl: '', link: '' });
+      setShowPortfolioForm(false);
+      fetchProfile();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add item');
+    } finally { setActionLoading(false); }
+  };
+
+  const handleRemovePortfolio = async (itemId) => {
+    if (!window.confirm('Remove this portfolio item?')) return;
+    try {
+      await axios.delete(`${backendUrl}/users/portfolio/${itemId}`, authHeader);
+      toast.success('Item removed');
+      fetchProfile();
+    } catch (err) {
+      toast.error('Failed to remove item');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -49,6 +85,7 @@ const SellerProfile = () => {
   }
 
   const { user, completedJobs, reviews } = data;
+  const isOwnProfile = currentUser?.id === id || currentUser?._id === id;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
@@ -75,9 +112,17 @@ const SellerProfile = () => {
                   {user.name?.charAt(0).toUpperCase()}
                 </div>
                 <h1 className="font-black text-gray-900 text-xl">{user.name}</h1>
-                <span className={`mt-1 text-xs font-black px-2.5 py-0.5 rounded uppercase ${
-                  user.role === 'seller' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-                }`}>{user.role}</span>
+                <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
+                  <span className={`text-xs font-black px-2.5 py-0.5 rounded uppercase ${
+                    user.role === 'seller' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                  }`}>{user.role}</span>
+                  {user?.kyc?.status === 'verified' && (
+                    <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded flex items-center gap-1 shadow-sm">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                      Verified
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Stats */}
@@ -85,13 +130,25 @@ const SellerProfile = () => {
                 {[
                   { label: 'Rating', value: user.rating > 0 ? user.rating.toFixed(1) : '—' },
                   { label: 'Reviews', value: reviews.length },
-                  { label: 'Jobs', value: completedJobs },
+                  { label: 'Jobs', value: user.completedJobs || completedJobs },
                 ].map(s => (
                   <div key={s.label} className="border border-gray-100 rounded p-2 text-center">
                     <p className="font-black text-gray-900 text-base">{s.value}</p>
                     <p className="text-gray-400 text-xs">{s.label}</p>
                   </div>
                 ))}
+              </div>
+
+              {/* Extra Stats */}
+              <div className="mb-5 space-y-2">
+                <div className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
+                  <span className="text-gray-500 font-bold uppercase tracking-wide text-xs">Response Time</span>
+                  <span className="font-black text-gray-900">{user.responseTime || '1 Hour'}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
+                  <span className="text-gray-500 font-bold uppercase tracking-wide text-xs">Account Created</span>
+                  <span className="font-black text-gray-900">{new Date(user.createdAt).getFullYear()}</span>
+                </div>
               </div>
 
               {/* Rating stars */}
@@ -133,8 +190,54 @@ const SellerProfile = () => {
             </div>
           </aside>
 
-          {/* ── RIGHT: Reviews ── */}
-          <main className="flex-1 min-w-0">
+          {/* ── RIGHT: Main Content ── */}
+          <main className="flex-1 min-w-0 flex flex-col gap-6">
+            
+            {/* PORTFOLIO SECTION */}
+            <div className="bg-white border-2 border-gray-200 rounded p-6">
+              <div className="flex justify-between items-center mb-5">
+                <h2 className="font-black text-gray-900 text-base uppercase tracking-wide">
+                  Portfolio ({user.portfolio?.length || 0})
+                </h2>
+                {isOwnProfile && (
+                  <button onClick={() => setShowPortfolioForm(!showPortfolioForm)} className="text-xs font-bold text-blue-600 border-2 border-blue-600 px-3 py-1 rounded hover:bg-blue-50">
+                    + Add Item
+                  </button>
+                )}
+              </div>
+              
+              {showPortfolioForm && (
+                <form onSubmit={handleAddPortfolio} className="bg-gray-50 border border-gray-200 p-4 rounded mb-6 flex flex-col gap-3">
+                  <input placeholder="Project/Boost Title (e.g., Diamond to Master Push)" className="border border-gray-300 p-2 rounded text-sm w-full" value={portfolioForm.title} onChange={e => setPortfolioForm({...portfolioForm, title: e.target.value})} required />
+                  <input placeholder="Image URL (optional screenshot)" className="border border-gray-300 p-2 rounded text-sm w-full" value={portfolioForm.imageUrl} onChange={e => setPortfolioForm({...portfolioForm, imageUrl: e.target.value})} />
+                  <input placeholder="Link (optional proof/match history)" className="border border-gray-300 p-2 rounded text-sm w-full" value={portfolioForm.link} onChange={e => setPortfolioForm({...portfolioForm, link: e.target.value})} />
+                  <button disabled={actionLoading} type="submit" className="bg-blue-600 text-white font-bold text-sm px-4 py-2 rounded mt-2 uppercase w-fit">Save Item</button>
+                </form>
+              )}
+
+              {user.portfolio?.length > 0 ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {user.portfolio.map(item => (
+                    <div key={item._id} className="border border-gray-200 rounded p-3 relative bg-gray-50 flex flex-col justify-between">
+                      {isOwnProfile && (
+                        <button onClick={() => handleRemovePortfolio(item._id)} className="absolute top-2 right-2 text-xs bg-red-100 text-red-600 hover:bg-red-200 rounded-full w-6 h-6 flex items-center justify-center font-bold">×</button>
+                      )}
+                      <div>
+                        <h3 className="font-bold text-gray-900 text-sm mb-1 pr-6">{item.title}</h3>
+                        {item.link && <a href={item.link} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline font-semibold mb-2 block">View Details &rarr;</a>}
+                      </div>
+                      {item.imageUrl && (
+                        <img src={item.imageUrl} alt={item.title} className="w-full h-32 object-cover rounded border border-gray-200 mt-3" onError={e => e.target.style.display='none'} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 italic">No portfolio items added yet.</p>
+              )}
+            </div>
+
+            {/* REVIEWS SECTION */}
             <div className="bg-white border-2 border-gray-200 rounded p-6">
               <h2 className="font-black text-gray-900 text-base uppercase tracking-wide mb-5">
                 Reviews ({reviews.length})

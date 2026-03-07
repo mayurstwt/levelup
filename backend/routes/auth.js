@@ -19,6 +19,9 @@ router.post('/login', [
     body('password', 'Password is required').exists()
 ], validate, authController.login);
 
+router.post('/refresh', authController.refresh);
+router.post('/logout', authController.logout);
+
 router.get('/profile', auth, authController.getProfile);
 
 router.post('/forgot-password', [

@@ -1,7 +1,6 @@
 const Job = require('../models/Job');
 const Bid = require('../models/Bid');
-const { notifyUser } = require('../server');
-
+const { notifyUser } = require('../utils/notify');
 
 // @route   POST /api/jobs
 // @desc    Create a job
@@ -28,31 +27,44 @@ exports.createJob = async (req, res) => {
         res.status(201).json(job);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
+
+// Helper to escape user input used in MongoDB $regex (prevents ReDoS)
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // @route   GET /api/jobs
 // @desc    Get all open jobs (with optional filters, sort, pagination)
 // @access  Public
 exports.getJobs = async (req, res) => {
     try {
-        const { game, serviceType, budgetMin, budgetMax, search, sortBy, page = 1, limit = 12 } = req.query;
+        const { game, serviceType, budgetMin, budgetMax, search, sortBy, tags, page = 1, limit = 12 } = req.query;
         let query = { status: 'open' };
 
         // Full-text search (uses MongoDB text index)
         if (search) {
             query.$text = { $search: search };
         } else if (game) {
-            query.game = { $regex: new RegExp(game, 'i') };
+            query.game = { $regex: new RegExp(escapeRegex(game), 'i') };
         }
 
-        if (serviceType) query.serviceType = { $regex: new RegExp(serviceType, 'i') };
+        // Tag filter (#57): ?tags=coaching,ranked
+        if (tags) {
+            const tagList = tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+            if (tagList.length > 0) query.tags = { $in: tagList };
+        }
+
+        if (serviceType) query.serviceType = { $regex: new RegExp(escapeRegex(serviceType), 'i') };
         if (budgetMin || budgetMax) {
             query.budget = {};
-            if (budgetMin) query.budget.$gte = Number(budgetMin);
-            if (budgetMax) query.budget.$lte = Number(budgetMax);
+            const min = Number(budgetMin);
+            const max = Number(budgetMax);
+            if (min < 0 || max < 0) return res.status(400).json({ message: 'Budget values cannot be negative' });
+            if (budgetMin && budgetMax && max <= min) return res.status(400).json({ message: 'budgetMax must be greater than budgetMin' });
+            if (budgetMin) query.budget.$gte = min;
+            if (budgetMax) query.budget.$lte = max;
         }
 
         // Sort mapping
@@ -92,7 +104,7 @@ exports.getJobs = async (req, res) => {
         res.json({ jobs: jobsWithBids, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -118,7 +130,7 @@ exports.getJobById = async (req, res) => {
         if (err.kind === 'ObjectId') {
             return res.status(404).json({ message: 'Job not found' });
         }
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -151,7 +163,7 @@ exports.updateJob = async (req, res) => {
         if (err.kind === 'ObjectId') {
             return res.status(404).json({ message: 'Job not found' });
         }
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -184,7 +196,7 @@ exports.matchJob = async (req, res) => {
         res.json(job);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -203,7 +215,7 @@ exports.getUserJobs = async (req, res) => {
         res.json({ jobs, total: jobs.length });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 }
 
@@ -226,19 +238,16 @@ exports.startJob = async (req, res) => {
         job.status = 'in_progress';
         await job.save();
 
-        const { notifyUser } = require('../server');
-        try {
-            notifyUser(job.buyerId, {
-                type: 'message',
-                jobId: job._id,
-                message: `🚀 Seller has started working on "${job.title}".`
-            });
-        } catch (_) { }
+        notifyUser(job.buyerId, {
+            type: 'message',
+            jobId: job._id,
+            message: `🚀 Seller has started working on "${job.title}".`
+        });
 
         res.json(job);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -262,19 +271,16 @@ exports.requestCompletion = async (req, res) => {
         // We can use the updatedAt timestamp for the auto-complete cron
         await job.save();
 
-        const { notifyUser } = require('../server');
-        try {
-            notifyUser(job.buyerId, {
-                type: 'review_pending',
-                jobId: job._id,
-                message: `Seller has finished "${job.title}". Please review and approve to release funds.`,
-            });
-        } catch (_) { }
+        notifyUser(job.buyerId, {
+            type: 'review_pending',
+            jobId: job._id,
+            message: `Seller has finished "${job.title}". Please review and approve to release funds.`,
+        });
 
         res.json(job);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -294,12 +300,14 @@ exports.completeJob = async (req, res) => {
             return res.status(400).json({ message: 'Job is not in a valid state to be completed' });
         }
 
+        // Complete the job
         job.status = 'completed';
         await job.save();
 
         // Release funds to seller ledger
         const Transaction = require('../models/Transaction');
         const Ledger = require('../models/Ledger');
+        const User = require('../models/User');
         const tx = await Transaction.findOne({ jobId: job._id, status: 'paid' });
 
         if (tx && job.sellerId) {
@@ -311,22 +319,20 @@ exports.completeJob = async (req, res) => {
             );
         }
 
-        // Notify the seller that job was marked complete
-        const { notifyUser } = require('../server');
-        try {
-            if (job.sellerId) {
-                notifyUser(job.sellerId, {
-                    type: 'completed',
-                    jobId: job._id,
-                    message: `✅ Job "${job.title}" has been completed by the buyer. Escrow funds released to your wallet!`,
-                });
-            }
-        } catch (_) { }
+        // Notify the seller that job was marked complete and update their completedJobs stat
+        if (job.sellerId) {
+            await User.findByIdAndUpdate(job.sellerId, { $inc: { completedJobs: 1 } });
+            notifyUser(job.sellerId, {
+                type: 'completed',
+                jobId: job._id,
+                message: `✅ Job "${job.title}" has been completed by the buyer. Escrow funds released to your wallet!`,
+            });
+        }
 
         res.json(job);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -342,8 +348,8 @@ exports.raiseDispute = async (req, res) => {
             return res.status(403).json({ message: 'Only the buyer can raise a dispute' });
         }
 
-        if (job.status !== 'matched') {
-            return res.status(400).json({ message: 'Job must be matched to raise a dispute' });
+        if (!['matched', 'in_progress'].includes(job.status)) {
+            return res.status(400).json({ message: 'Job must be matched or in progress to raise a dispute' });
         }
 
         job.status = 'disputed';
@@ -351,7 +357,7 @@ exports.raiseDispute = async (req, res) => {
         res.json(job);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -380,6 +386,6 @@ exports.deleteJob = async (req, res) => {
         res.json({ message: 'Job deleted successfully' });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };

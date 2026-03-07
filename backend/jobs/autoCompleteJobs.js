@@ -2,6 +2,8 @@ const cron = require('node-cron');
 const Job = require('../models/Job');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
+const User = require('../models/User');
+const { notifyUser } = require('../utils/notify');
 
 const autoCompleteJobs = () => {
     // Run every hour
@@ -15,7 +17,6 @@ const autoCompleteJobs = () => {
                 updatedAt: { $lte: threeDaysAgo }
             });
 
-            const { notifyUser } = require('../server');
 
             for (let job of jobsToComplete) {
                 job.status = 'completed';
@@ -33,13 +34,12 @@ const autoCompleteJobs = () => {
                 }
 
                 if (job.sellerId) {
-                    try {
-                        notifyUser(job.sellerId, {
-                            type: 'completed',
-                            jobId: job._id,
-                            message: `⏰ Job "${job.title}" has auto-completed after 3 days. Escrow funds released to your wallet!`
-                        });
-                    } catch (_) { }
+                    await User.findByIdAndUpdate(job.sellerId, { $inc: { completedJobs: 1 } });
+                    notifyUser(job.sellerId, {
+                        type: 'completed',
+                        jobId: job._id,
+                        message: `⏰ Job "${job.title}" has auto-completed after 3 days. Escrow funds released to your wallet!`
+                    });
                 }
             }
             if (jobsToComplete.length > 0) {

@@ -1,4 +1,5 @@
-import { formatDistanceToNow } from 'date-fns';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 
 export const GAMES_LIST = [
     'Roblox',
@@ -64,9 +65,18 @@ export const formatNumber = (num) => {
     return num.toString();
 };
 
+dayjs.extend(relativeTime);
+
+// 'Oct 24 at 2:30 PM'
+export const formatDate = (date) => {
+    if (!date) return '';
+    return dayjs(date).format('MMM D [at] h:mm A');
+};
+
+// '3 hours ago', '2 days ago'
 export const formatTimeAgo = (date) => {
     if (!date) return '';
-    return formatDistanceToNow(new Date(date), { addSuffix: true });
+    return dayjs(date).fromNow();
 };
 
 // Deterministic avatar gradient based on userId string

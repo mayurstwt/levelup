@@ -238,7 +238,7 @@ const Home = () => {
               ))}
             </div>
             <button
-              onClick={() => navigate('/become-seller')}
+              onClick={() => navigate('/seller-onboarding')}
               className="mt-6 w-full border-2 border-gray-900 hover:bg-gray-900 hover:text-white text-gray-900 font-black py-3 rounded text-sm transition-colors"
             >
               Become a Pro Seller &gt;
@@ -368,7 +368,7 @@ const Home = () => {
             ))}
           </div>
           <div className="border-t border-gray-800 pt-5 flex flex-col sm:flex-row justify-between items-center gap-2">
-            <p className="text-gray-600 text-xs">© 2024 GameLevelUp Marketplace. All rights reserved.</p>
+            <p className="text-gray-600 text-xs">© {new Date().getFullYear()} GameLevelUp Marketplace. All rights reserved.</p>
             <div className="flex gap-4">
               <span className="text-gray-600 text-xs">Server Status: Online</span>
               <span className="text-gray-600 text-xs">Verified Secure Checkout</span>

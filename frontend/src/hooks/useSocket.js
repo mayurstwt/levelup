@@ -80,9 +80,12 @@ const useSocket = () => {
         }
 
         return () => {
-            // Don't disconnect — keep it for the lifetime of the session
-            socket.off('notification');
-            socket.off('reconnect');
+            if (socket) {
+                socket.off('notification');
+                socket.off('reconnect');
+                socket.disconnect();
+                socket = null;
+            }
             registeredRef.current = false;
         };
     }, [isAuthenticated, user?.id, dispatch]);

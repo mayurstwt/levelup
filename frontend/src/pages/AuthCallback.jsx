@@ -31,7 +31,7 @@ const AuthCallback = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center font-sans">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
       <h2 className="font-black text-gray-900 text-xl uppercase tracking-tight">Authenticating...</h2>
-      <p className="text-gray-500 text-sm mt-2">Connecting to your account via Discord.</p>
+      <p className="text-gray-500 text-sm mt-2">Connecting your account...</p>
     </div>
   );
 };

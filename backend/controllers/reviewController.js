@@ -13,6 +13,11 @@ exports.submitReview = async (req, res) => {
             return res.status(400).json({ message: 'jobId and rating are required' });
         }
 
+        const ratingNum = Number(rating);
+        if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+            return res.status(400).json({ message: 'Rating must be a number between 1 and 5' });
+        }
+
         const job = await Job.findById(jobId);
         if (!job) return res.status(404).json({ message: 'Job not found' });
 
@@ -59,7 +64,7 @@ exports.submitReview = async (req, res) => {
         res.status(201).json(populated);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -68,12 +73,22 @@ exports.submitReview = async (req, res) => {
 // @access  Public
 exports.getUserReviews = async (req, res) => {
     try {
-        const reviews = await Review.find({ revieweeId: req.params.userId })
-            .populate('reviewerId', ['name'])
-            .sort({ createdAt: -1 });
-        res.json(reviews);
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const limit = Math.min(50, Number(req.query.limit) || 10);
+        const skip = (page - 1) * limit;
+
+        const [reviews, total] = await Promise.all([
+            Review.find({ revieweeId: req.params.userId })
+                .populate('reviewerId', ['name'])
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+            Review.countDocuments({ revieweeId: req.params.userId }),
+        ]);
+
+        res.json({ reviews, total, page, pages: Math.ceil(total / limit) });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };

@@ -1,13 +1,14 @@
 const { Polar } = require('@polar-sh/sdk');
 const Job = require('../models/Job');
 const Transaction = require('../models/Transaction');
+const logger = require('../utils/logger');
 
 const polar = new Polar({
     accessToken: process.env.POLAR_API_KEY,
 });
 
 if (!process.env.POLAR_API_KEY) {
-    console.warn("WARNING: POLAR_API_KEY is not set. Polar integrations will fail.");
+    logger.warn('WARNING: POLAR_API_KEY is not set. Polar integrations will fail.');
 }
 
 exports.createCheckout = async (req, res) => {
@@ -51,7 +52,7 @@ exports.createCheckout = async (req, res) => {
             return res.status(400).json({ message: 'Dynamic checkouts not fully supported without a Product ID in v0.45+' });
         }
     } catch (err) {
-        console.error('Polar Checkout Error:', err.message);
+        logger.error('Polar Checkout Error:', err.message);
         res.status(500).json({ message: 'Error creating Polar checkout session' });
     }
 };
@@ -62,8 +63,8 @@ exports.webhook = async (req, res) => {
         const signature = req.headers['polar-signature'];
 
         if (!webhookSecret) {
-            console.error('Webhook secret is not configured!');
-            return res.status(500).send('Webhook Secret Configuration Error');
+            logger.error('Webhook secret is not configured!');
+            return res.status(500).json({ message: 'Webhook Secret Configuration Error' });
         }
 
         let event;
@@ -77,8 +78,8 @@ exports.webhook = async (req, res) => {
                 secret: webhookSecret
             });
         } catch (verificationError) {
-            console.error('Polar Webhook Signature Verification failed:', verificationError.message);
-            return res.status(401).send(`Webhook Signature Verification Failed`);
+            logger.error('Polar Webhook Signature Verification failed:', verificationError.message);
+            return res.status(401).json({ message: 'Webhook Signature Verification Failed' });
         }
 
         if (event.type === 'checkout.completed') {
@@ -111,31 +112,42 @@ exports.webhook = async (req, res) => {
                         await job.save();
 
                         // Notify seller that escrow is funded
-                        try {
-                            const { notifyUser } = require('../server');
-                            notifyUser(job.sellerId, { type: 'message', jobId: job._id, message: `✅ Escrow funded for "${job.title}"! You may now start the job.` });
-                        } catch (_) { }
+                        const { notifyUser } = require('../utils/notify');
+                        notifyUser(job.sellerId, { type: 'message', jobId: job._id, message: `✅ Escrow funded for "${job.title}"! You may now start the job.` });
                     }
                 }
             }
         } else if (event.type === 'subscription.created' || event.type === 'subscription.updated') {
-            const { metadata, price_id, status } = event.data;
+            const { metadata, price_id, status, id: subEventId } = event.data;
+
+            // Idempotency for subscription events
+            const existingSubTx = await Transaction.findOne({ paymentId: `sub_${subEventId}` });
+            if (existingSubTx) {
+                return res.status(200).json({ received: true, message: 'Subscription event already processed' });
+            }
+
             if (status === 'active' && metadata?.buyerId) {
                 const User = require('../models/User');
                 let tier = 'none';
                 if (price_id === process.env.POLAR_SELLER_PRO_PRICE_ID) tier = 'seller_pro';
                 if (price_id === process.env.POLAR_BUYER_PREMIUM_PRICE_ID) tier = 'buyer_pro';
-                // Add more conditions for elite tiers if necessary
 
                 if (tier !== 'none') {
                     await User.findByIdAndUpdate(metadata.buyerId, { subscription: tier });
+                    // Record idempotency marker
+                    await new Transaction({
+                        paymentId: `sub_${subEventId}`,
+                        amount: 0,
+                        status: 'subscription_upgraded',
+                    }).save();
+                    logger.info(`Subscription upgraded for user ${metadata.buyerId} to ${tier}`);
                 }
             }
         }
 
         res.status(200).json({ received: true });
     } catch (err) {
-        console.error('Polar Webhook Error:', err.message);
-        res.status(400).send(`Webhook Error: ${err.message}`);
+        logger.error('Polar Webhook Error:', err.message);
+        res.status(400).json({ message: `Webhook Error: ${err.message}` });
     }
 };

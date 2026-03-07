@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { changePassword } from '../features/auth/authSlice';
+import { changePassword, updateUser } from '../features/auth/authSlice';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -29,7 +28,6 @@ const InputField = ({ label, ...props }) => (
 
 const ChangePassword = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
   const { user, isLoading } = useSelector((state) => state.auth);
 
   // Profile settings
@@ -59,6 +57,7 @@ const ChangePassword = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.put(`${backendUrl}/users/profile`, { name: displayName, bio }, { headers: { Authorization: `Bearer ${token}` } });
+      dispatch(updateUser({ name: displayName, bio }));
       toast.success('Profile updated successfully!');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update profile');

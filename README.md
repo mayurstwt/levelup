@@ -221,3 +221,83 @@ The React application handling User Experience, powered by Vite, Tailwind CSS, a
 ---
 
 *Note: This architecture transitioned from MUI to Tailwind CSS/DaisyUI in early 2026. Avoid using legacy MUI components.*
+
+---
+
+## 🔧 Recent Improvements Changelog
+
+This section tracks incremental improvements made to the codebase, from simplest to most complex.
+
+### Batch 1 — Security & Bug Fixes (March 2026)
+
+| # | Area | Change |
+|---|------|--------|
+| 1 | **Auth** | Re-enabled email verification gate at login. Unverified users now get a `403` with a clear message. |
+| 2 | **Dispute** | `raiseDispute` now accepts both `matched` and `in_progress` job statuses (previously only `matched`). |
+| 3 | **API Errors** | Standardized all `500` responses across all controllers to return `JSON` (`{ message: 'Server error' }`) instead of plain text. |
+| 4 | **Frontend** | Removed broken "Learn More" button in `JobListing.jsx` that linked to a non-existent `/about` route. |
+| 5 | **Auth** | JWT token expiry is now **uniformly `7d`** across register, login, Discord OAuth, and Google OAuth. |
+| 7 | **Model** | Removed the unused `rate` field from `User.js` (was never written or read). |
+| 8 | **DevEx** | Added `.env.example` documenting all required and optional environment variables for the backend. |
+| 9 | **UI** | Footer copyright year is now dynamic (`new Date().getFullYear()`). |
+| 12 | **Frontend** | Added `NotFound.jsx` (404 page) and a `*` catch-all route in `App.jsx`. Unknown URLs no longer show blank screens. |
+| 22 | **API** | Rating input is now validated strictly as a number between `1` and `5` in `reviewController.js`. |
+| 23 | **Security** | Added `escapeRegex()` helper in `jobController.js` to sanitize user input before MongoDB `$regex` queries — prevents ReDoS attacks. |
+| 24 | **Security** | Password strength is now enforced on registration: min 8 chars, 1 number, 1 special character. |
+| 42 | **Frontend** | Added global Axios `401` interceptor in `main.jsx` — expired/invalid tokens automatically log the user out and redirect to `/login`. |
+
+### Batch 2 — Input Validation & Security (March 2026)
+
+| # | Area | Change |
+|---|------|--------|
+| 17 | **API** | `getJobs` now validates budget range — `budgetMax` must exceed `budgetMin`; negative values rejected. |
+| 18 | **API** | `getUserReviews` now supports `?page=` and `?limit=` query params. Prevents memory bloat for power users with hundreds of reviews. |
+| 19 | **Security** | Multer file upload now validates both MIME type **and** file extension (`.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`). Prevents spoofed uploads. |
+| 21 | **API** | Sellers are now explicitly blocked from bidding on their own jobs via a `buyerId` comparison check. |
+| 28 | **Real-time** | Socket `sendMessage` now requires job status to be `matched` or later — prevents premature chat before payment. Emits `chatError` event if violated. |
+
+### Batch 3 — Real-time, Logging & UX (March 2026)
+
+| # | Area | Change |
+|---|------|--------|
+| 29 | **Real-time** | Added server-side `typing` socket broadcast — the typing event from `Chat.jsx` now actually propagates to the other user in the room via `socket.to(jobId).emit()`. |
+| 36 | **Frontend** | Replaced `date-fns` with `dayjs` in `ui-helpers.js`. Added `formatDate()` for full timestamps ("Mar 7 at 2:30 PM") alongside the existing `formatTimeAgo()`. Smaller bundle, chainable API. |
+| 42 (extended) | **Frontend** | `MyBids.jsx` now shows `toast.success` / `toast.error` on bid withdrawal. Replaced bare `alert()`. Dates now use `formatDate()` from dayjs. |
+| 45 | **Backend** | Created `utils/logger.js` using **Winston**. All `console.log` / `console.error` calls in `server.js` replaced. Logs to console (colored) + `logs/error.log` + `logs/combined.log`. Level is `debug` in dev and `warn` in production. |
+
+### Batch 4 — Presence, UI Polish & Webhook Hardening (March 2026)
+
+| # | Area | Change |
+|---|------|--------|
+| 30 | **Real-time** | Added server-side online user tracking (`Set`). `userOnline` / `userOffline` events broadcast to all clients on connect/disconnect. `Chat.jsx` header shows a green ● / grey ○ presence dot next to the chat partner's avatar. |
+| 31 | **Frontend** | `Skeleton.jsx` upgraded with 4 new types: `'bid-card'`, `'dashboard-row'`, `'profile'`, and multi-line `'line'`. The `count` prop controls number of line skeletons. |
+| 33 | **Frontend** | `EmptyState.jsx` now renders inline SVG illustrations (`jobs`, `bids`, `notifications`, `default`) instead of just an emoji. No external image dependencies. |
+| 46 | **Backend** | Polar webhook now dedups **subscription** events using a `sub_{eventId}` paymentId marker stored in the Transaction collection — preventing double-upgrades on Polar retries. Console calls replaced with Winston logger. |
+
+### Batch 5 — Reliability, Automation & Performance (March 2026)
+
+| # | Area | Change |
+|---|------|--------|
+| 47 | **Backend** | `acceptBid` now uses a `withRetry()` helper wrapping MongoDB sessions with up to 3 retries on `TransientTransactionError` / `UnknownTransactionCommitResult`. Prevents silent fund loss on network hiccups. |
+| 48 | **Backend** | Dispute resolution (`resolveDispute`) now sends in-app notifications to both the buyer (on `refund_buyer`) and the seller (on `pay_seller`) when an admin resolves a dispute. |
+| 65 | **Automation** | New `autoCancelAbandonedJobs.js` cron (every 30 min): if a job stays in `matched` for 24+ hours without being started, it's reset to `open`, the accepted bid is rejected, and both parties are notified. |
+| 66 | **Automation** | New `autoEscalateDisputes.js` cron (every 6 hours): if any job sits in `disputed` for 72+ hours unresolved, all admin accounts receive an urgent in-app notification with buyer/seller details. |
+| 77 | **Performance** | Added 4 compound MongoDB indexes to the `Job` model: `(status, game)`, `(buyerId, status)`, `(sellerId, status)`, `(status, updatedAt)` — targeting the most common query patterns. |
+
+### Batch 6 — Withdrawals, Job Tags & Feature Completeness (March 2026)
+
+| # | Area | Change |
+|---|------|--------|
+| 49 | **Backend** | New `Withdrawal` system: sellers request payouts via `POST /api/withdrawals`. Amount is moved from `availableBalance → pendingBalance` on request. Admin approves/rejects/marks-paid via `PUT /api/withdrawals/:id/process`. In-app notifications at each step. Minimum payout enforced via `MIN_PAYOUT_AMOUNT` env var (default ◈10). |
+| 51 | **Frontend** | The bid confirm modal in `JobDetails.jsx` already shows fee breakdown (Service Fee + Max Total in the sidebar). This was audited and confirmed intact. |
+| 55 | **Frontend** | Save-job via `localStorage` already implemented in `JobDetails.jsx` sidebar. Confirmed working. |
+| 57 | **Backend** | `tags` field added to `Job` schema (array of lowercase strings). Indexed at DB level. `getJobs` now accepts `?tags=coaching,ranked` to filter by any matching tag. |
+
+### Batch 7 — Seamless Flow & Security (March 2026)
+
+| # | Area | Change |
+|---|------|--------|
+| 52 | **Frontend** | Bid acceptance now seamlessly refetches data in `JobDetails.jsx` instead of doing a full `window.location.reload()`, leading to a smoother user experience. |
+| 56/58 | **Platform** | Full Job Reporting/Flagging system. New `Report` model and `POST /api/reports` endpoint. Added a "Report this listing" button inside `JobDetails.jsx`'s sidebar. |
+| 59 | **Sellers** | Portfolio UI added to `SellerProfile.jsx` along with `POST/DELETE /api/users/portfolio` backend endpoints, letting sellers showcase past jobs, images, and proof links to drastically improve profile conversion rates. |
+| 89 | **Security** | Overhauled Authentication to use **JWT Refresh Tokens**: Auth endpoints now issue an HTTP-only 7-day `refreshToken` cookie and a 15-minute `accessToken`. Configured a global Axios interceptor (`main.jsx`) to silently catch `401` errors, rotate the tokens via `POST /api/auth/refresh`, and seamlessly retry failed requests without logging the user out unjustly. |

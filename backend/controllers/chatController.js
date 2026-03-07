@@ -35,6 +35,6 @@ exports.getChat = async (req, res) => {
         res.json(chat);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };

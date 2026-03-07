@@ -1,13 +1,22 @@
-import React from 'react';
-import { useSelector } from 'react-redux';
+import React, { useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import toast from 'react-hot-toast';
 import { formatCurrency, STATUS_COLORS } from '../../utils/ui-helpers';
 import EmptyState from '../../components/EmptyState';
+
+const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const SellerDashboard = () => {
   const { user } = useSelector((state) => state.auth);
   const { userJobs } = useSelector((state) => state.jobs);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const [pan, setPan] = useState('');
+  const [aadhaar, setAadhaar] = useState('');
+  const [kycLoading, setKycLoading] = useState(false);
 
   const jobs = userJobs || [];
   
@@ -18,6 +27,22 @@ const SellerDashboard = () => {
   
   const totalEarnings = completedJobs.reduce((acc, job) => acc + (job.budget || 0), 0);
   const avgRating = user?.rating ? user.rating.toFixed(1) : 'New';
+
+  const handleKycSubmit = async (e) => {
+    e.preventDefault();
+    if (!pan || !aadhaar) return toast.error('Both PAN and Aadhaar are required');
+    setKycLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${backendUrl}/users/kyc`, { pan, aadhaar }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('KYC documents submitted for review!');
+      dispatch(updateUser({ kyc: { status: 'pending' } })); // Refresh user data to show updated kyc status
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to submit KYC');
+    } finally {
+      setKycLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-[calc(100vh-48px)] font-sans text-gray-900 selection:bg-blue-200 pb-16">
@@ -40,6 +65,31 @@ const SellerDashboard = () => {
             FIND NEW GIGS
           </Link>
         </div>
+
+        {/* KYC Verification Banner */}
+        {user?.kyc?.status !== 'verified' && (
+          <div className={`p-5 border-2 ${user?.kyc?.status === 'pending' ? 'bg-yellow-50 border-yellow-400' : 'bg-red-50 border-red-400'} shadow-[4px_4px_0_0_#111] flex flex-col md:flex-row items-start md:items-center justify-between gap-4`}>
+            <div>
+              <h3 className={`text-sm font-black uppercase flex items-center gap-2 ${user?.kyc?.status === 'pending' ? 'text-yellow-800' : 'text-red-800'}`}>
+                {user?.kyc?.status === 'pending' ? '⏳ KYC Review Pending' : '⚠️ Identity Verification Required'}
+              </h3>
+              <p className={`text-xs mt-1 ${user?.kyc?.status === 'pending' ? 'text-yellow-700' : 'text-red-700'}`}>
+                {user?.kyc?.status === 'pending' 
+                  ? 'Your identity documents are under review by our team. This usually takes 24-48 hours.'
+                  : 'Get the "Verified" badge to increase buyer trust and unlock higher tier limits.'}
+              </p>
+            </div>
+            {user?.kyc?.status !== 'pending' && (
+              <form onSubmit={handleKycSubmit} className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                <input required type="text" placeholder="PAN Number" value={pan} onChange={e => setPan(e.target.value)} className="border-2 border-gray-900 px-3 py-2 text-sm outline-none w-full sm:w-40" />
+                <input required type="text" placeholder="Aadhaar Number" value={aadhaar} onChange={e => setAadhaar(e.target.value)} className="border-2 border-gray-900 px-3 py-2 text-sm outline-none w-full sm:w-48" />
+                <button type="submit" disabled={kycLoading} className="bg-gray-900 hover:bg-black text-white px-4 py-2 font-black text-sm uppercase shrink-0 transition-colors">
+                  {kycLoading ? '...' : 'Submit'}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
@@ -105,7 +155,7 @@ const SellerDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y-2 divide-gray-100">
-                  {jobs.slice(0, 10).map(job => (
+                  {jobs.filter(job => job.status !== 'cancelled').slice(0, 10).map(job => (
                     <tr key={job._id} className="hover:bg-blue-50 transition-colors">
                       <td className="px-5 py-4">
                         <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">{job.game}</div>
@@ -132,7 +182,7 @@ const SellerDashboard = () => {
                       </td>
                     </tr>
                   ))}
-                  {jobs.length === 0 && (
+                  {jobs.filter(job => job.status !== 'cancelled').length === 0 && (
                     <tr>
                       <td colSpan="5" className="bg-white">
                         <EmptyState 

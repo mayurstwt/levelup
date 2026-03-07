@@ -15,6 +15,7 @@
   "dependencies": {
     "@polar-sh/sdk": "^0.45.1",
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "envalid": "^8.1.1",
@@ -29,7 +30,8 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
     "socket.io": "^4.8.3",
-    "tslib": "^2.8.1"
+    "tslib": "^2.8.1",
+    "winston": "^3.19.0"
   },
   "devDependencies": {
     "jest": "^30.2.0",

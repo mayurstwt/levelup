@@ -524,16 +524,10 @@ const JobListing = () => {
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={() => navigate('/become-seller')}
+                  onClick={() => navigate('/seller-onboarding')}
                   className="bg-gray-900 hover:bg-gray-700 text-white font-black px-5 py-2.5 rounded text-sm transition-colors"
                 >
                   Become a Seller
-                </button>
-                <button
-                  onClick={() => navigate('/about')}
-                  className="border-2 border-gray-300 hover:border-gray-900 text-gray-700 font-black px-5 py-2.5 rounded text-sm transition-colors"
-                >
-                  Learn More
                 </button>
               </div>
             </div>
@@ -577,7 +571,7 @@ const JobListing = () => {
             ))}
           </div>
           <div className="border-t border-gray-100 pt-4 flex flex-col sm:flex-row justify-between items-center gap-2">
-            <p className="text-gray-400 text-xs">© 2024 GameLevelUp Marketplace. All rights reserved.</p>
+            <p className="text-gray-400 text-xs">© {new Date().getFullYear()} GameLevelUp Marketplace. All rights reserved.</p>
             <div className="flex gap-4">
               <span className="text-gray-400 text-xs">Server Status: Online</span>
               <span className="text-gray-400 text-xs">Verified Secure Checkout</span>

@@ -5,10 +5,15 @@ const bidSchema = new mongoose.Schema({
     sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     bidAmount: { type: Number, required: true },
     message: { type: String, required: true },
-    status: { 
-        type: String, 
-        enum: ['pending', 'accepted', 'rejected'], 
-        default: 'pending' 
+    counter: {
+        amount: { type: Number },
+        message: { type: String },
+        proposedBy: { type: String, enum: ['buyer', 'seller'] }
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'countered', 'accepted', 'rejected'],
+        default: 'pending'
     }
 }, { timestamps: true });
 

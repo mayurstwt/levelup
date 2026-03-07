@@ -8,6 +8,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const { cleanEnv, str, port, url } = require('envalid');
+const cookieParser = require('cookie-parser');
+const logger = require('./utils/logger');
 
 // Load env vars
 dotenv.config();
@@ -32,6 +34,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.use(cookieParser());
 
 // Security Headers
 app.use(helmet());
@@ -92,6 +95,9 @@ app.use('/api/payments', require('./routes/payments'));
 app.use('/api/polar', require('./routes/polar'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/chats', require('./routes/chats'));
+app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/withdrawals', require('./routes/withdrawals'));
+app.use('/api/reports', require('./routes/reports'));
 
 // Simple local upload route for media
 const multer = require('multer');
@@ -113,15 +119,17 @@ const storage = multer.diskStorage({
     }
 });
 
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+
 const upload = multer({
     storage: storage,
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
     fileFilter: (req, file, cb) => {
-        if (file.mimetype.startsWith('image/')) {
-            cb(null, true);
-        } else {
-            cb(new Error('Only images are allowed'));
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (!file.mimetype.startsWith('image/') || !ALLOWED_EXTENSIONS.includes(ext)) {
+            return cb(new Error('Only image files are allowed (.jpg, .jpeg, .png, .webp, .gif)'));
         }
+        cb(null, true);
     }
 });
 
@@ -140,6 +148,8 @@ app.post('/api/upload', protect, upload.single('media'), (req, res) => {
 require('./jobs/expireJobs');
 require('./jobs/syncSubscriptions')();
 require('./jobs/autoCompleteJobs')();
+require('./jobs/autoCancelAbandonedJobs')();
+require('./jobs/autoEscalateDisputes')();
 
 
 
@@ -154,27 +164,35 @@ const io = new Server(server, {
 });
 
 const Chat = require('./models/Chat');
+const notify = require('./utils/notify');
 
-// Map userId -> socketId for targeted notifications
-const userSocketMap = {};
+// Initialize the notify utility so controllers can call notifyUser without circular deps
+notify.init(io);
 
-// Export io and userSocketMap so controllers can emit notifications
-module.exports.io = io;
-module.exports.userSocketMap = userSocketMap;
+// Map userId -> socketId for targeted notifications — now managed by utils/notify.js
+const onlineUsers = new Set(); // Track online userIds for presence feature
 
 io.on('connection', (socket) => {
-    console.log(`Socket connected: ${socket.id}`);
+    logger.debug(`Socket connected: ${socket.id}`);
 
     // Register user <-> socket mapping for notifications
     socket.on('register', (userId) => {
-        userSocketMap[userId] = socket.id;
-        console.log(`User ${userId} registered with socket ${socket.id}`);
+        notify.registerSocket(userId, socket.id);
+        socket.userId = userId; // store on socket for cleanup
+        onlineUsers.add(userId);
+        io.emit('userOnline', userId);
+        logger.debug(`User ${userId} registered with socket ${socket.id}`);
     });
 
     // Join a specific chat room based on Job ID
     socket.on('joinChat', (jobId) => {
         socket.join(jobId);
-        console.log(`User joined chat room: ${jobId}`);
+        logger.debug(`User joined chat room: ${jobId}`);
+    });
+
+    // Broadcast typing indicator to others in the room (#29)
+    socket.on('typing', ({ jobId, senderId }) => {
+        socket.to(jobId).emit('typing', { senderId });
     });
 
     // Send and save message
@@ -187,6 +205,12 @@ io.on('connection', (socket) => {
             const job = await Job.findById(jobId);
             if (!job || (job.buyerId.toString() !== senderId && job.sellerId?.toString() !== senderId)) {
                 return console.error(`Unauthorized chat attempt to job ${jobId} from ${senderId}`);
+            }
+
+            // Prevent chat before job is at least matched
+            const CHAT_ALLOWED_STATUSES = ['matched', 'in_progress', 'review_pending', 'completed', 'disputed'];
+            if (!CHAT_ALLOWED_STATUSES.includes(job.status)) {
+                return socket.emit('chatError', { message: 'Chat is only available after a bid has been accepted.' });
             }
 
             // Save to DB
@@ -209,7 +233,7 @@ io.on('connection', (socket) => {
             // Emit to everyone in the room
             io.to(jobId).emit('newMessage', newMessage);
         } catch (err) {
-            console.error('Socket error saving message:', err.message);
+            logger.error('Socket error saving message:', err.message);
         }
     });
 
@@ -232,26 +256,19 @@ io.on('connection', (socket) => {
                 }
             }
         } catch (err) {
-            console.error('Socket error marking read:', err.message);
+            logger.error('Socket error marking read:', err.message);
         }
     });
 
     socket.on('disconnect', () => {
-        // Remove from map
-        for (const [uid, sid] of Object.entries(userSocketMap)) {
-            if (sid === socket.id) delete userSocketMap[uid];
+        notify.removeSocket(socket.id);
+        if (socket.userId) {
+            onlineUsers.delete(socket.userId);
+            io.emit('userOffline', socket.userId);
         }
-        console.log(`Socket disconnected: ${socket.id}`);
+        logger.debug(`Socket disconnected: ${socket.id}`);
     });
 });
-
-// Helper: send notification to a specific user
-const notifyUser = (userId, payload) => {
-    const socketId = userSocketMap[String(userId)];
-    if (socketId) io.to(socketId).emit('notification', payload);
-};
-
-module.exports.notifyUser = notifyUser;
 
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/level_up';
@@ -259,18 +276,18 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/level_up';
 // Connect to MongoDB
 mongoose.connect(MONGO_URI)
     .then(() => {
-        console.log('MongoDB connected successfully');
+        logger.info('MongoDB connected successfully');
         server.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
+            logger.info(`Server running on port ${PORT}`);
         });
     })
     .catch((error) => {
-        console.error('MongoDB connection error:', error.message);
+        logger.error('MongoDB connection error:', error.message);
         process.exit(1);
     });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
-    console.log(`Error: ${err.message}`);
+    logger.error(`Unhandled Rejection: ${err.message}`);
     server.close(() => process.exit(1));
 });

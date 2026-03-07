@@ -36,6 +36,7 @@ const JobPost = () => {
   const [description, setDescription] = useState('');
   const [budget, setBudget] = useState(500);
   const [deadline, setDeadline] = useState('1Week');
+  const [customDeadline, setCustomDeadline] = useState('');
   const [mediaFiles, setMediaFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -87,13 +88,20 @@ const JobPost = () => {
       setStep(3);
       return;
     }
+    const finalDeadline = deadline === 'Custom' ? customDeadline : deadline;
+    if (deadline === 'Custom' && !customDeadline.trim()) {
+      toast.error('Please enter a custom deadline in Step 3');
+      setStep(3);
+      return;
+    }
+
     const result = await dispatch(createJob({
       title: `${gameTitle} – ${targetLevel ? `Lvl ${currentLevel} → ${targetLevel}` : serviceType || 'Boost Request'}`,
       description,
       game: gameTitle,
       serviceType,
       budget: Number(budget),
-      timeline: deadline,
+      timeline: finalDeadline,
     }));
     if (!result.error) navigate('/dashboard');
   };
@@ -376,19 +384,28 @@ const JobPost = () => {
 
                       <div className="mt-4">
                         <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-2">Deadline</label>
-                        <div className="flex gap-2">
-                          {['24Hours', '3Days', '1Week'].map((d) => (
+                        <div className="grid grid-cols-2 gap-2">
+                          {['24Hours', '3Days', '1Week', 'Custom'].map((d) => (
                             <button
                               key={d}
                               type="button"
-                              onClick={() => setDeadline(d)}
+                              onClick={() => { setDeadline(d); if (d !== 'Custom') setCustomDeadline(''); }}
                               className={`flex-1 py-2 text-xs font-black rounded border-2 transition-colors
                                 ${deadline === d ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-600'}`}
                             >
-                              {d === '24Hours' ? '24 Hours' : d === '3Days' ? '3 Days' : '1 Week'}
+                              {d === '24Hours' ? '24 Hours' : d === '3Days' ? '3 Days' : d === '1Week' ? '1 Week' : 'Custom / Fixed Date'}
                             </button>
                           ))}
                         </div>
+                        {deadline === 'Custom' && (
+                          <input
+                            type="text"
+                            value={customDeadline}
+                            onChange={(e) => setCustomDeadline(e.target.value)}
+                            placeholder="e.g. By Friday, Before end of Season, 5 Days"
+                            className="mt-2 w-full border-2 border-gray-200 focus:border-blue-500 rounded px-3 py-2 text-sm outline-none transition-colors"
+                          />
+                        )}
                       </div>
                     </div>
 

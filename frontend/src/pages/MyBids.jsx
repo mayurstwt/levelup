@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { withdrawBid } from '../features/jobs/jobSlice';
 import ConfirmModal from '../components/ConfirmModal';
+import { formatDate } from '../utils/ui-helpers';
 
 const MyBids = () => {
     const [bids, setBids] = useState([]);
@@ -38,8 +40,10 @@ const MyBids = () => {
         try {
             await dispatch(withdrawBid(bidIdToWithdraw)).unwrap();
             setBids(bids.filter(b => b._id !== bidIdToWithdraw));
+            setShowWithdrawModal(false);
+            toast.success('Bid withdrawn successfully');
         } catch (err) {
-            alert('Failed to withdraw bid');
+            toast.error(err || 'Failed to withdraw bid');
         }
     };
 
@@ -79,7 +83,7 @@ const MyBids = () => {
                                         <span className="text-green-600 font-black">₹{bid.bidAmount}</span>
                                         <span className="mx-2 text-gray-300">|</span>
                                         <span className="font-bold text-gray-800">Date: </span>
-                                        <span className="text-gray-600 font-medium">{new Date(bid.createdAt).toLocaleDateString()}</span>
+                                    <span className="text-gray-600 font-medium">{formatDate(bid.createdAt)}</span>
                                     </div>
                                 </div>
                                 

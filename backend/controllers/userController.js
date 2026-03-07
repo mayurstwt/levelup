@@ -17,7 +17,7 @@ exports.getSellers = async (req, res) => {
         res.json(sellers);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -43,7 +43,7 @@ exports.getPublicProfile = async (req, res) => {
         res.json({ user, completedJobs, reviews });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -74,7 +74,7 @@ exports.updateProfile = async (req, res) => {
         res.json(user);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -102,6 +102,53 @@ exports.submitKYC = async (req, res) => {
         res.json({ message: 'KYC submitted successfully', user });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @route   POST /api/users/portfolio
+// @desc    Add a portfolio item
+// @access  Private (Seller only)
+exports.addPortfolioItem = async (req, res) => {
+    try {
+        if (req.user.role !== 'seller') {
+            return res.status(403).json({ message: 'Only sellers can add portfolio items' });
+        }
+
+        const { title, imageUrl, link } = req.body;
+        if (!title) return res.status(400).json({ message: 'Title is required' });
+
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            { $push: { portfolio: { title, imageUrl, link } } },
+            { new: true }
+        ).select('-password');
+
+        res.status(201).json(user);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @route   DELETE /api/users/portfolio/:itemId
+// @desc    Remove a portfolio item
+// @access  Private (Seller only)
+exports.removePortfolioItem = async (req, res) => {
+    try {
+        if (req.user.role !== 'seller') {
+            return res.status(403).json({ message: 'Only sellers can manage portfolios' });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            { $pull: { portfolio: { _id: req.params.itemId } } },
+            { new: true }
+        ).select('-password');
+
+        res.json(user);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };

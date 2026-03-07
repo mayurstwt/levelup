@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import axios from 'axios';
 import { logout } from '../features/auth/authSlice';
 import { markNotificationsRead } from '../features/notifications/notificationSlice';
 import ConfirmModal from './ConfirmModal';
@@ -19,7 +20,10 @@ const Navbar = () => {
     setShowLogoutModal(true);
   };
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/logout`, {}, { withCredentials: true });
+    } catch (e) { console.error('Logout err', e); }
     dispatch(logout());
     setShowLogoutModal(false);
     navigate('/');

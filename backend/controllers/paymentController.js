@@ -10,11 +10,11 @@ exports.createPayment = async (req, res) => {
 
         const job = await Job.findById(jobId);
         if (!job) {
-             return res.status(404).json({ message: 'Job not found' });
+            return res.status(404).json({ message: 'Job not found' });
         }
 
         if (job.buyerId.toString() !== req.user.id) {
-             return res.status(403).json({ message: 'Not authorized' });
+            return res.status(403).json({ message: 'Not authorized' });
         }
 
         if (job.status !== 'matched') {
@@ -36,17 +36,15 @@ exports.createPayment = async (req, res) => {
 
         await transaction.save();
 
-        // Normally, we would return a payment URL here from Instamojo
         res.json({
-            message: 'Payment mock initiated',
+            message: 'Payment initiated',
             transactionId: transaction._id,
             totalAmount,
-            mockPaymentUrl: `http://localhost:5173/mock-checkout/${transaction._id}`
         });
 
     } catch (err) {
-         console.error(err.message);
-         res.status(500).send('Server error');
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -65,14 +63,12 @@ exports.webhook = async (req, res) => {
         if (status === 'success') {
             transaction.status = 'paid';
             await transaction.save();
-
-            // Might also update job status here, e.g. to "in progress"
         }
 
         res.json({ message: 'Webhook processed' });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -94,6 +90,6 @@ exports.getHistory = async (req, res) => {
         res.json(transactions);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        res.status(500).json({ message: 'Server error' });
     }
 };

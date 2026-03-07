@@ -9,9 +9,18 @@ const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
     bio: { type: String, default: '' },
     games: [{ type: String }],
-    rate: { type: Number, default: 0 },
     rating: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
+    reviews: { type: Number, default: 0 },
+    topRated: { type: Boolean, default: false },
+    completedJobs: { type: Number, default: 0 },
+    responseTime: { type: String, default: '1 Hour' },
+    portfolio: [{
+        title: { type: String, required: true },
+        imageUrl: { type: String },
+        link: { type: String }
+    }],
+    stripeAccountId: { type: String },
     subscription: {
         type: String,
         enum: ['none', 'buyer_pro', 'buyer_elite', 'seller_pro', 'seller_elite'],

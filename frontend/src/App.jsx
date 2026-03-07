@@ -22,6 +22,7 @@ import MyBids from './pages/MyBids';
 import TermsOfService from './pages/TermsOfService';
 import VerifyEmail from './pages/VerifyEmail';
 import AuthCallback from './pages/AuthCallback';
+import NotFound from './pages/NotFound';
 import useSocket from './hooks/useSocket';
 
 // Protected Route
@@ -86,6 +87,9 @@ function AppInner() {
 
         {/* Admin */}
         <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+
+        {/* 404 catch-all */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </>
   );

@@ -22,6 +22,7 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [isOtherOnline, setIsOtherOnline] = useState(false);
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaPreview, setMediaPreview] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -93,6 +94,15 @@ const Chat = () => {
         clearTimeout(typingTimeout.current);
         typingTimeout.current = setTimeout(() => setIsTyping(false), 3000);
       }
+    });
+
+    // Online presence events (#30)
+    const otherId = jobDetails?.buyerId?._id === user?.id ? jobDetails?.sellerId?._id : jobDetails?.buyerId?._id;
+    socketRef.current.on('userOnline', (userId) => {
+      if (userId === otherId) setIsOtherOnline(true);
+    });
+    socketRef.current.on('userOffline', (userId) => {
+      if (userId === otherId) setIsOtherOnline(false);
     });
 
     socketRef.current.on('notification', (payload) => {
@@ -189,12 +199,17 @@ const Chat = () => {
             </svg>
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-black text-sm">
-              {otherPerson?.name?.charAt(0).toUpperCase() || '?'}
+            <div className="relative">
+              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-black text-sm">
+                {otherPerson?.name?.charAt(0).toUpperCase() || '?'}
+              </div>
+              <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${isOtherOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
             </div>
             <div>
               <p className="font-black text-gray-900 text-sm leading-tight">{otherPerson?.name || 'Participant'}</p>
-              <p className="text-gray-400 text-xs">Re: <span className="text-gray-600 font-semibold">{jobDetails?.title}</span></p>
+              <p className="text-xs font-semibold" style={{ color: isOtherOnline ? '#10b981' : '#9ca3af' }}>
+                {isOtherOnline ? '● Online' : '○ Offline'}
+              </p>
             </div>
           </div>
         </div>

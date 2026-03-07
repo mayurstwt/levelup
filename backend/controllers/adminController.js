@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Job = require('../models/Job');
+const logger = require('../utils/logger');
 
 const adminOnly = (req, res) => {
     if (req.user.role !== 'admin') {
@@ -16,8 +17,8 @@ exports.getUsers = async (req, res) => {
         const users = await User.find().select('-password').sort({ createdAt: -1 });
         res.json(users);
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        logger.error(err.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -37,6 +38,8 @@ exports.resolveDispute = async (req, res) => {
 
         if (resolution === 'refund_buyer') {
             await Transaction.findOneAndUpdate({ jobId: job._id }, { status: 'refunded' });
+            const { notifyUser } = require('../utils/notify');
+            notifyUser(job.buyerId, { type: 'refund', jobId: job._id, message: `💰 Admin resolved the dispute for "${job.title}" in your favour. Refund initiated.` });
         } else if (resolution === 'pay_seller') {
             const Ledger = require('../models/Ledger');
             const tx = await Transaction.findOne({ jobId: job._id, status: 'paid' });
@@ -47,14 +50,17 @@ exports.resolveDispute = async (req, res) => {
                     { $inc: { availableBalance: payoutAmount, totalEarned: payoutAmount } },
                     { upsert: true, new: true }
                 );
+                const { notifyUser } = require('../utils/notify');
+                notifyUser(job.sellerId, { type: 'payout', jobId: job._id, message: `💸 Admin resolved the dispute for "${job.title}". Funds released to your wallet!` });
             }
         }
 
         await job.save();
+        logger.info(`Admin resolved dispute for job ${jobId}: ${resolution}`);
         res.json({ message: `Dispute resolved: ${resolution}`, job });
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        logger.error(err.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -69,8 +75,8 @@ exports.banUser = async (req, res) => {
         await user.save();
         res.json({ message: `User ${user.isBanned ? 'banned' : 'unbanned'}`, isBanned: user.isBanned });
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        logger.error(err.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -86,7 +92,8 @@ exports.approveKYC = async (req, res) => {
         if (!user) return res.status(404).json({ message: 'User not found' });
         res.json({ message: `KYC ${status}`, user });
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        logger.error(err.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };
+

@@ -4,6 +4,25 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendPasswordResetEmail, sendVerificationEmail, sendSecurityAlert } = require('../utils/email');
 
+const generateTokens = (user, res) => {
+    const payload = { user: { id: user.id || user._id, role: user.role } };
+
+    // Short-lived access token (e.g. 15 minutes)
+    const accessToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
+
+    // Long-lived refresh token (e.g. 7 days)
+    const refreshToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax', // or 'strict' depending on cross-origin needs
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return accessToken;
+};
+
 // @route   POST /api/auth/register
 // @desc    Register a user
 // @access  Public
@@ -13,6 +32,17 @@ exports.register = async (req, res) => {
 
         if (!email || !password || !name) {
             return res.status(400).json({ message: 'Please provide all required fields' });
+        }
+
+        // Enforce password strength
+        if (password.length < 8) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters' });
+        }
+        if (!/\d/.test(password)) {
+            return res.status(400).json({ message: 'Password must contain at least one number' });
+        }
+        if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+            return res.status(400).json({ message: 'Password must contain at least one special character' });
         }
 
         // Check if user exists
@@ -38,20 +68,9 @@ exports.register = async (req, res) => {
         const verifyUrl = `${frontendUrl}/verify-email/${verificationToken}`;
         await sendVerificationEmail(user.email, verifyUrl);
 
-        // Return JWT
-        const payload = {
-            user: { id: user.id, role: user.role }
-        };
-
-        jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '1h' },
-            (err, token) => {
-                if (err) throw err;
-                res.status(201).json({ token, user: { id: user.id, name: user.name, role: user.role, email: user.email } });
-            }
-        );
+        // Return Access Token (Refresh Token in cookie)
+        const token = generateTokens(user, res);
+        res.status(201).json({ token, user: { id: user.id, name: user.name, role: user.role, email: user.email } });
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server error');
@@ -98,10 +117,9 @@ exports.login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid Credentials' });
         }
 
-        // Temporarily bypass email verification for local testing
-        // if (!user.isEmailVerified) {
-        //     return res.status(403).json({ message: 'Please verify your email address before logging in.' });
-        // }
+        if (!user.isEmailVerified) {
+            return res.status(403).json({ message: 'Please verify your email address before logging in. Check your inbox for the verification link.' });
+        }
 
         // Match password
         const isMatch = await bcrypt.compare(password, user.password);
@@ -109,20 +127,9 @@ exports.login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid Credentials' });
         }
 
-        // Return JWT
-        const payload = {
-            user: { id: user.id, role: user.role }
-        };
-
-        jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '1h' },
-            (err, token) => {
-                if (err) throw err;
-                res.json({ token, user: { id: user.id, name: user.name, role: user.role, email: user.email } });
-            }
-        );
+        // Return Access Token (Refresh Token in cookie)
+        const token = generateTokens(user, res);
+        res.json({ token, user: { id: user.id, name: user.name, role: user.role, email: user.email } });
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server error');
@@ -391,15 +398,47 @@ exports.googleCallback = async (req, res) => {
             await user.save();
         }
 
-        // 4. Issue JWT
-        const payload = { user: { id: user.id, role: user.role } };
-        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+        // Return tokens
+        const token = generateTokens(user, res);
 
-        res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+        // Redirect with token attached or to a generic success page that retrieves token via /me (SaaS pattern)
+        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth-success?token=${token}`);
     } catch (err) {
         console.error('googleCallback error:', err.message);
-        res.redirect(`${frontendUrl}/login?error=server_error`);
+        res.redirect(`${frontendUrl || 'http://localhost:5173'}/login?error=server_error`);
     }
 };
 
+// @route   POST /api/auth/refresh
+// @desc    Refresh access token
+// @access  Public
+exports.refresh = async (req, res) => {
+    try {
+        const { refreshToken } = req.cookies;
+        if (!refreshToken) {
+            return res.status(401).json({ message: 'No refresh token, authorization denied' });
+        }
 
+        const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.user.id);
+
+        if (!user || user.isBanned) {
+            return res.status(401).json({ message: 'Token is not valid' });
+        }
+
+        // Return new Access Token (and rotate refresh token)
+        const token = generateTokens(user, res);
+        res.json({ token });
+    } catch (err) {
+        res.clearCookie('refreshToken');
+        res.status(401).json({ message: 'Refresh token expired or invalid' });
+    }
+};
+
+// @route   POST /api/auth/logout
+// @desc    Logout user (clear cookie)
+// @access  Public
+exports.logout = async (req, res) => {
+    res.clearCookie('refreshToken');
+    res.json({ message: 'Logged out successfully' });
+};

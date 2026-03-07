@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { deleteJob, getUserJobs } from '../features/jobs/jobSlice';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -35,6 +36,7 @@ const JobDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
 
   const [job, setJob] = useState(null);
   const [bids, setBids] = useState([]);
@@ -57,12 +59,14 @@ const JobDetails = () => {
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [bidIdToWithdraw, setBidIdToWithdraw] = useState(null);
+  const [showCounterModal, setShowCounterModal] = useState(false);
+  const [selectedBid, setSelectedBid] = useState(null);
+  const [counterForm, setCounterForm] = useState({ amount: '', message: '' });
 
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
   const authHeader = { headers: { Authorization: `Bearer ${token}` } };
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = React.useCallback(async () => {
       try {
         if (!id || id === 'preview') { setJob(MOCK_JOB); setBids(MOCK_BIDS); setIsLoading(false); return; }
         const jobRes = await axios.get(`${backendUrl}/jobs/${id}`);
@@ -90,9 +94,11 @@ const JobDetails = () => {
         }
       } catch (err) { setJob(MOCK_JOB); setBids(MOCK_BIDS); }
       finally { setIsLoading(false); }
-    };
+    }, [id, user]);
+    
+  useEffect(() => {
     fetchData();
-  }, [id, user]);
+  }, [fetchData]);
 
   const saveJobEdit = async () => {
     setActionLoading(true);
@@ -126,7 +132,11 @@ const JobDetails = () => {
 
   const acceptBid = async (bidId) => {
     setActionLoading(true);
-    try { await axios.put(`${backendUrl}/bids/${bidId}/accept`, {}, authHeader); window.location.reload(); }
+    try { 
+      await axios.put(`${backendUrl}/bids/${bidId}/accept`, {}, authHeader); 
+      await fetchData(); 
+      toast.success('Bid accepted successfully!');
+    }
     catch (err) { setActionMsg({ type: 'error', text: err.response?.data?.message || 'Error accepting bid' }); }
     finally { setActionLoading(false); }
   };
@@ -136,6 +146,39 @@ const JobDetails = () => {
     try { const res = await axios.put(`${backendUrl}/jobs/${id}/complete`, {}, authHeader); setJob(res.data); setActionMsg({ type: 'success', text: 'Job marked as completed!' }); }
     catch (err) { setActionMsg({ type: 'error', text: err.response?.data?.message || 'Error completing job' }); }
     finally { setActionLoading(false); }
+  };
+
+  const handleCounterOffer = async (e) => {
+    e.preventDefault();
+    if (!counterForm.amount) return toast.error('Counter amount is required');
+    setActionLoading(true);
+    try {
+      await axios.post(`${backendUrl}/bids/${selectedBid._id}/counter`, {
+        amount: Number(counterForm.amount),
+        message: counterForm.message
+      }, authHeader);
+      toast.success('Counter-offer sent!');
+      setShowCounterModal(false);
+      setCounterForm({ amount: '', message: '' });
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send counter-offer');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const acceptCounter = async (bidId) => {
+    setActionLoading(true);
+    try {
+      await axios.post(`${backendUrl}/bids/${bidId}/counter/accept`, {}, authHeader);
+      toast.success('Counter-offer accepted!');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to accept counter');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const raiseDispute = async () => {
@@ -162,6 +205,18 @@ const JobDetails = () => {
     try { await axios.post(`${backendUrl}/reviews`, { jobId: id, rating: reviewRating, comment: reviewComment }, authHeader); setReviewDone(true); }
     catch (err) { setActionMsg({ type: 'error', text: err.response?.data?.message || 'Error submitting review' }); }
     finally { setReviewLoading(false); }
+  };
+
+  const handleReportJob = async () => {
+    if (!user) return navigate('/login');
+    const reason = window.prompt('Why are you reporting this job? Please provide a brief reason.');
+    if (!reason) return;
+    try {
+      await axios.post(`${backendUrl}/reports`, { jobId: id, reason }, authHeader);
+      toast.success('Job reported successfully. Our trust & safety team will review it.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error reporting job');
+    }
   };
 
   if (isLoading) return (
@@ -384,9 +439,18 @@ const JobDetails = () => {
                           <span style={{ fontSize: 11, fontWeight: 700, color: '#333' }}>{bid.sellerId?.rating}</span>
                           <span style={{ fontSize: 11, color: '#888' }}>({bid.sellerId?.reviews})</span>
                         </div>
-                        {bid.sellerId?.topRated && (
-                          <span style={{ background: '#4f8ef7', color: 'white', fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 3, textTransform: 'uppercase' }}>Top Rated</span>
-                        )}
+                        <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>{bid.sellerId?.completedJobs || 0} Jobs Completed</span>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+                          {bid.sellerId?.kyc?.status === 'verified' && (
+                            <span style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 3, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                              Verified
+                            </span>
+                          )}
+                          {bid.sellerId?.topRated && (
+                            <span style={{ background: '#4f8ef7', color: 'white', fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 3, textTransform: 'uppercase' }}>Top Rated</span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Details col */}
@@ -414,9 +478,33 @@ const JobDetails = () => {
 
                       {/* Actions col */}
                       <div style={{ flexShrink: 0, padding: '15px 14px', display: 'flex', flexDirection: 'column', gap: 8, justifyContent: 'center' }}>
-                        <button onClick={() => acceptBid(bid._id)} disabled={actionLoading} style={{ background: 'white', border: '1.5px solid #333', color: '#111', borderRadius: 4, padding: '7px 16px', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                          {actionLoading ? '...' : 'Accept Bid'}
-                        </button>
+                        {bid.status === 'pending' || (bid.status === 'countered' && bid.counter?.proposedBy === 'seller' && isOwner) ? (
+                          <>
+                            {isOwner && (
+                              <button onClick={() => acceptBid(bid._id)} disabled={actionLoading} style={{ background: '#111', border: 'none', color: 'white', borderRadius: 4, padding: '7px 16px', fontWeight: 800, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                {actionLoading ? '...' : (bid.status === 'countered' ? 'Accept Seller Counter' : 'Accept Bid')}
+                              </button>
+                            )}
+                            <button onClick={() => { setSelectedBid(bid); setShowCounterModal(true); }} disabled={actionLoading} style={{ background: 'white', border: '1.5px solid #333', color: '#111', borderRadius: 4, padding: '7px 16px', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              Counter Offer
+                            </button>
+                          </>
+                        ) : bid.status === 'countered' ? (
+                          <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', padding: '8px', borderRadius: 4, textAlign: 'center' }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, margin: '0 0 4px', color: '#b45309' }}>COUNTERED ({bid.counter?.amount}◈)</p>
+                            {(!isOwner && bid.counter?.proposedBy === 'buyer') ? (
+                              <button onClick={() => acceptCounter(bid._id)} disabled={actionLoading} style={{ background: '#f5a623', border: 'none', color: 'white', borderRadius: 4, padding: '5px 10px', fontWeight: 800, fontSize: 11, cursor: 'pointer', width: '100%' }}>
+                                Accept Counter
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 10, color: '#92400e' }}>Waiting for response</span>
+                            )}
+                          </div>
+                        ) : bid.status === 'accepted' ? (
+                          <span style={{ background: '#16a34a', color: 'white', fontWeight: 800, fontSize: 11, padding: '6px 12px', borderRadius: 4, textAlign: 'center' }}>Accepted</span>
+                        ) : (
+                          <span style={{ background: '#dc2626', color: 'white', fontWeight: 800, fontSize: 11, padding: '6px 12px', borderRadius: 4, textAlign: 'center' }}>Rejected</span>
+                        )}
                         <button style={{ background: 'white', border: '1.5px solid #ccc', color: '#444', borderRadius: 4, padding: '7px 16px', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'center' }}>
                           💬 Message
                         </button>
@@ -566,17 +654,13 @@ const JobDetails = () => {
                 {isOwner && job.status === 'open' ? (
                   <>
                     <button
-                      onClick={() => { setIsEditing(true); document.querySelector('[data-job-card]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-                      style={{ width: '100%', background: '#4f8ef7', color: 'white', border: 'none', borderRadius: 4, padding: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}
-                    >
-                      ✏️ Edit Job Posting
-                    </button>
-                    <button
                       onClick={async () => {
                         if (!window.confirm('Cancel this job posting? This cannot be undone.')) return;
                         setActionLoading(true);
                         try {
                           await axios.put(`${backendUrl}/jobs/${id}`, { status: 'cancelled' }, authHeader);
+                          dispatch(deleteJob(id)); // Remove from local UI state
+                          dispatch(getUserJobs()); // Re-fetch dashboard jobs just in case
                           toast.success('Job posting cancelled.');
                           navigate('/dashboard');
                         } catch (err) {
@@ -608,6 +692,16 @@ const JobDetails = () => {
                     </button>
                   </>
                 ) : null}
+                
+                {/* Flag Job Button */}
+                {!isOwner && (
+                  <button
+                    onClick={handleReportJob}
+                    style={{ background: 'none', border: 'none', width: '100%', fontSize: 11, color: '#888', textDecoration: 'underline', marginTop: 12, marginBottom: 16, cursor: 'pointer' }}
+                  >
+                    🚩 Report this listing
+                  </button>
+                )}
               </div>
 
               {/* Safety Tip */}
@@ -700,6 +794,28 @@ const JobDetails = () => {
         confirmText="Withdraw"
         confirmColor="bg-red-600"
       />
+
+      {showCounterModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', borderRadius: 8, width: '100%', maxWidth: 400, padding: 24, boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <h2 style={{ fontWeight: 800, fontSize: 18, marginBottom: 16 }}>Propose Counter-Offer</h2>
+            <form onSubmit={handleCounterOffer}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 8 }}>New Price (◈)</label>
+                <input required type="number" min="1" value={counterForm.amount} onChange={e => setCounterForm({...counterForm, amount: e.target.value})} style={{ width: '100%', border: '1px solid #ccc', borderRadius: 4, padding: 10, fontSize: 14 }} />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Message (optional)</label>
+                <textarea rows="3" value={counterForm.message} onChange={e => setCounterForm({...counterForm, message: e.target.value})} style={{ width: '100%', border: '1px solid #ccc', borderRadius: 4, padding: 10, fontSize: 14 }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" onClick={() => setShowCounterModal(false)} style={{ background: 'transparent', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" disabled={actionLoading} style={{ background: '#111', color: 'white', border: 'none', borderRadius: 4, padding: '8px 16px', fontWeight: 700, cursor: 'pointer' }}>{actionLoading ? '...' : 'Send Counter'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
